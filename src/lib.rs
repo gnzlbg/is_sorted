@@ -4,7 +4,6 @@
 
 // If the `use_std` feature is not enable, compile for `no_std`:
 #![cfg_attr(not(feature = "use_std"), no_std)]
-
 // If the `unstable` feature is enabled, enable nightly-only features:
 #![cfg_attr(
     feature = "unstable",
@@ -17,7 +16,7 @@
 #[cfg(not(feature = "use_std"))]
 use core as std;
 
-use std::{cmp};
+use std::cmp;
 
 #[cfg(all(feature = "use_std", feature = "unstable"))]
 use std::{arch, mem, slice};
@@ -99,10 +98,12 @@ pub trait IsSorted: Iterator {
         Self: Sized,
         Self::Item: Ord,
     {
-        #[cfg(feature = "unstable")] {
+        #[cfg(feature = "unstable")]
+        {
             self.is_sorted_by(Less)
         }
-        #[cfg(not(feature = "unstable"))] {
+        #[cfg(not(feature = "unstable"))]
+        {
             self.is_sorted_by(<Self::Item as Ord>::cmp)
         }
     }
@@ -336,14 +337,14 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
 
 #[cfg(test)]
 mod tests {
-    use {IsSorted};
+    use IsSorted;
     extern crate std;
 
     #[cfg(feature = "unstable")]
     use self::std::vec::Vec;
 
     #[cfg(feature = "unstable")]
-    use {Less};
+    use Less;
 
     #[test]
     fn floats() {
