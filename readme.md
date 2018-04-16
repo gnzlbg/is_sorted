@@ -26,6 +26,8 @@ the comparison operation being used:
 
 * `is_sorted::Less`: equivalent to `a.cmp(b)`
 * `is_sorted::Greater`: equivalent to `a.cmp(b).reverse()`
+* `is_sorted::PartialLessUnwrapped`: equivalent to `a.partial_cmp(b).unwrap()`
+* `is_sorted::PartialGreaterUnwrapped`: equivalent to `a.partial_cmp(b).unwrap().reverse()`
 
 When compiled with `--features unstable` the crate makes use of the following
 nightly-only features:
@@ -48,7 +50,7 @@ and see for yourself. On my machine:
 test run_16i_baseline  ... bench:   1,030,343 ns/iter (+/- 128,024)
 test run_16i_is_sorted ... bench:     291,504 ns/iter (+/- 36,711) # 3.5x
 test run_16u_baseline  ... bench:   1,030,282 ns/iter (+/- 133,204) 
-test run_16u_is_sorted ... bench:     339,998 ns/iter (+/- 72,954) # 3x
+test run_16u_is_sorted ... bench:     339,998 ns/iter (+/- 72,954) # 3.0x
 test run_32f_baseline  ... bench:   3,186,189 ns/iter (+/- 1,879,466)
 test run_32f_is_sorted ... bench:     666,493 ns/iter (+/- 164,823) # 4.8x
 test run_32i_baseline  ... bench:   1,061,721 ns/iter (+/- 144,198) 
