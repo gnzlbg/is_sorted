@@ -273,7 +273,6 @@ where
     true
 }
 
-
 /// Checks whether a slice is sorted until the first element aligned with a
 /// $boundary (16 for 16-byte boundary). Returns a (i,n,s) tuple where `i` is
 /// the index of the next element in the slice aligned to a 16-byte boundary,
@@ -293,7 +292,8 @@ macro_rules! is_sorted_handle_unaligned_head_int {
         // 16-byte boundary. Handle the elements until the
         // first 16-byte boundary using the scalar algorithm
         {
-            let mut a = s.as_ptr().align_offset($boundary) / mem::size_of::<$ty>();
+            let mut a =
+                s.as_ptr().align_offset($boundary) / mem::size_of::<$ty>();
             while a > 0 && i < n - 1 {
                 if s.get_unchecked(i as usize)
                     > s.get_unchecked(i as usize + 1)
@@ -303,11 +303,14 @@ macro_rules! is_sorted_handle_unaligned_head_int {
                 i += 1;
                 a -= 1;
             }
-            debug_assert!(i == n - 1 || s.as_ptr().offset(i).align_offset($boundary) == 0);
+            debug_assert!(
+                i == n - 1
+                    || s.as_ptr().offset(i).align_offset($boundary) == 0
+            );
         }
 
         (i, n, s)
-    }}
+    }};
 }
 
 /// Handles the tail of the `slice` `s` of length `n` starting at index `i`
@@ -325,7 +328,7 @@ macro_rules! is_sorted_handle_tail {
         }
         debug_assert!($i == $n - 1);
         true
-    }}
+    }};
 }
 
 /// Specialization for iterator over &[i32] and increasing order.
@@ -338,7 +341,12 @@ macro_rules! is_sorted_handle_tail {
 /// target supports `SSE4.1` at compile-time.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(any(feature = "use_std", any(target_feature = "sse4.1", target_feature = "avx2")))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx2")
+    )
+)]
 impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
     #[inline]
     fn is_sorted_by(&mut self, compare: ord::Less) -> bool {
@@ -350,7 +358,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i32, 16);
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, i32, 16);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
@@ -420,7 +429,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i32, 32);
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, i32, 32);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
 
             // `i` points to the first element of the slice at a 16-byte
@@ -483,10 +493,12 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
 
         #[cfg(not(feature = "use_std"))]
         unsafe {
-            #[cfg(not(target_feature = "avx2"))] {
+            #[cfg(not(target_feature = "avx2"))]
+            {
                 sse41_i32_impl(self)
             }
-            #[cfg(target_feature = "avx2")] {
+            #[cfg(target_feature = "avx2")]
+            {
                 avx2_i32_impl(self)
             }
         }
@@ -519,7 +531,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, u32, 16);
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, u32, 16);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
@@ -646,7 +659,7 @@ impl<'a> IsSortedBy<ord::PartialLessUnwrapped> for slice::Iter<'a, f32> {
             }
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. 
+            // boundary.
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 4; // #lanes in each vector
@@ -738,7 +751,12 @@ impl<'a> IsSortedBy<ord::PartialLessUnwrapped> for slice::Iter<'a, f32> {
 /// Specialization for iterator over &[i16] and increasing order.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(any(feature = "use_std", any(target_feature = "sse4.1", target_feature = "avx2")))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx2")
+    )
+)]
 impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
     #[inline]
     fn is_sorted_by(&mut self, compare: ord::Less) -> bool {
@@ -750,11 +768,12 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i16, 16);
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, i16, 16);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. 
+            // boundary.
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 8; // #lanes in each vector
@@ -814,7 +833,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i16, 32);
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, i16, 32);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
 
             // `i` points to the first element of the slice at a 16-byte
@@ -877,10 +897,12 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
 
         #[cfg(not(feature = "use_std"))]
         unsafe {
-            #[cfg(not(target_feature = "avx2"))] {
+            #[cfg(not(target_feature = "avx2"))]
+            {
                 sse41_i16_impl(self)
             }
-            #[cfg(target_feature = "avx2")] {
+            #[cfg(target_feature = "avx2")]
+            {
                 avx2_i16_impl(self)
             }
         }
@@ -913,11 +935,12 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u16> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, u16, 16);
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, u16, 16);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. 
+            // boundary.
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 8; // #lanes in each vector
@@ -995,7 +1018,12 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u16> {
 /// Specialization for iterator over &[i8] and increasing order.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(any(feature = "use_std", any(target_feature = "sse4.1", target_feature = "avx2")))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx2")
+    )
+)]
 impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
     #[inline]
     fn is_sorted_by(&mut self, compare: ord::Less) -> bool {
@@ -1007,11 +1035,12 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i8, 16);
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, i8, 16);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. 
+            // boundary.
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 16; // #lanes in each vector
@@ -1071,7 +1100,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i8, 32);
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, i8, 32);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
 
             // `i` points to the first element of the slice at a 16-byte
@@ -1132,13 +1162,14 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
             is_sorted_handle_tail!(s, n, i)
         }
 
-
         #[cfg(not(feature = "use_std"))]
         unsafe {
-            #[cfg(not(target_feature = "avx2"))] {
+            #[cfg(not(target_feature = "avx2"))]
+            {
                 sse41_i8_impl(self)
             }
-            #[cfg(target_feature = "avx2")] {
+            #[cfg(target_feature = "avx2")]
+            {
                 avx2_i8_impl(self)
             }
         }
@@ -1171,11 +1202,12 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i8, 16);
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, i8, 16);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. 
+            // boundary.
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 16; // #lanes in each vector

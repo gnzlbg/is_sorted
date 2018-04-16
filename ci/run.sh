@@ -20,4 +20,5 @@ if [[ $TRAVIS_RUST_VERSION == "nightly" ]] || [[ $TARGET = *"windows"* ]]; then
     cargo test --no-default-features --features unstable
     cargo test --no-default-features --features use_std,unstable
     cargo test --no-default-features --release --features use_std,unstable
+    RUSTFLAGS="-C target-cpu=native" cargo test --no-default-features --release --features use_std,unstable
 fi
