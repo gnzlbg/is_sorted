@@ -9,8 +9,6 @@ comparison operation being used:
 
 * `is_sorted::Less`: equivalent to `a.cmp(b)`
 * `is_sorted::Greater`: equivalent to `a.cmp(b).reverse()`
-* `is_sorted::PartialLess`: equivalent to `a.partial_cmp(b)`
-* `is_sorted::PartialGreater`: equivalent to `a.partial_cmp(b).reverse()`
 
 The crate requires nightly and uses the following nightly features:
 
