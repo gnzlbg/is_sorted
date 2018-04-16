@@ -25,11 +25,31 @@ mod ord {
             arg.0.cmp(arg.1)
         }
     }
+
+    /// Equivalent to `Ord::cmp(a, b).invert()`
+    pub struct Greater();
+
+    impl<'a, 'b, T: Ord> FnOnce<(&'a T, &'b T)> for Greater {
+        type Output = Ordering;
+        extern "rust-call" fn call_once(self, arg: (&'a T, &'b T)) -> Self::Output {
+            arg.0.cmp(arg.1).reverse()
+        }
+    }
+
+    impl<'a, 'b, T: Ord> FnMut<(&'a T, &'b T)> for Greater {
+        extern "rust-call" fn call_mut(&mut self, arg: (&'a T, &'b T)) -> Self::Output {
+            arg.0.cmp(arg.1).reverse()
+        }
+    }
 }
 
 /// Function object equivalent to `Ord::cmp(a, b)`.
 #[allow(non_upper_case_globals)]
 pub const Less: ord::Less = ord::Less();
+
+/// Function object equivalent to `Ord::cmp(a, b).reverse()`.
+#[allow(non_upper_case_globals)]
+pub const Greater: ord::Greater = ord::Greater();
 
 /// Extends `Iterator` with `is_sorted`, `is_sorted_by`, and `is_sorted_by_key`.
 pub trait IsSorted: Iterator {
