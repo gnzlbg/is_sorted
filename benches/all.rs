@@ -36,7 +36,6 @@ macro_rules! from_usize_prim_f {
     };
 }
 
-
 from_usize_prim!(i8);
 from_usize_prim!(u8);
 from_usize_prim!(i16);
@@ -105,23 +104,27 @@ macro_rules! sorted_f {
             for _ in 0..n {
                 v.push(<$ty as Rnd>::rnd());
             }
-            v.sort_by(|a,b| a.partial_cmp(b).unwrap());
+            v.sort_by(|a, b| a.partial_cmp(b).unwrap());
             black_box(&mut v);
             b.iter(|| {
                 let s: &[$ty] = v.as_slice();
                 black_box(s.as_ptr());
-                #[cfg(feature = "unstable")] {
+                #[cfg(feature = "unstable")]
+                {
                     use is_sorted::PartialLessUnwrapped;
                     black_box(s.iter().is_sorted_by(PartialLessUnwrapped));
                 }
-                #[cfg(not(feature = "unstable"))] {
-                    black_box(s.iter().is_sorted_by(|a,b| a.partial_cmp(b).unwrap()));
+                #[cfg(not(feature = "unstable"))]
+                {
+                    black_box(
+                        s.iter()
+                            .is_sorted_by(|a, b| a.partial_cmp(b).unwrap()),
+                    );
                 }
             });
         }
     };
 }
-
 
 const N8: usize = 4_000_000;
 const N16: usize = 2_000_000;

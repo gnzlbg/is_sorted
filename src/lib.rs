@@ -90,7 +90,9 @@ mod ord {
     /// Equivalent to `PartialOrd::partial_cmp(a, b).unwrap().reverse()`
     pub struct PartialGreaterUnwrapped();
 
-    impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)> for PartialGreaterUnwrapped {
+    impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)>
+        for PartialGreaterUnwrapped
+    {
         type Output = Ordering;
         extern "rust-call" fn call_once(
             self, arg: (&'a T, &'b T),
@@ -122,12 +124,14 @@ pub const Greater: ord::Greater = ord::Greater();
 /// Callable equivalent to `PartialOrd::partial_cmp(a, b).unwrap()`.
 #[cfg(feature = "unstable")]
 #[allow(non_upper_case_globals)]
-pub const PartialLessUnwrapped: ord::PartialLessUnwrapped = ord::PartialLessUnwrapped();
+pub const PartialLessUnwrapped: ord::PartialLessUnwrapped =
+    ord::PartialLessUnwrapped();
 
 /// Callable equivalent to `PartialOrd::partial_cmp(a, b).unwrap().reverse()`.
 #[cfg(feature = "unstable")]
 #[allow(non_upper_case_globals)]
-pub const PartialGreaterUnwrapped: ord::PartialGreaterUnwrapped = ord::PartialGreaterUnwrapped();
+pub const PartialGreaterUnwrapped: ord::PartialGreaterUnwrapped =
+    ord::PartialGreaterUnwrapped();
 
 /// Extends `Iterator` with `is_sorted`, `is_sorted_by`, and
 /// `is_sorted_by_key`.
@@ -605,13 +609,30 @@ impl<'a> IsSortedBy<ord::PartialLessUnwrapped> for slice::Iter<'a, f32> {
                     let next2 = _mm_load_ps(ap(i + 3 * NLANES)); // [a12, a13, a14, a15]
                     let next3 = _mm_load_ps(ap(i + 4 * NLANES)); // [a16, a17, a18, a19]
 
-                    let compare0 = _mm_alignr_epi8(mem::transmute(next0), mem::transmute(current), EWIDTH); // [a1, a2, a3, a4]
-                    let compare1 = _mm_alignr_epi8(mem::transmute(next1), mem::transmute(next0), EWIDTH); // [a5, a6, a7, a8]
-                    let compare2 = _mm_alignr_epi8(mem::transmute(next2), mem::transmute(next1), EWIDTH); // [a9, a10, a11, a12]
-                    let compare3 = _mm_alignr_epi8(mem::transmute(next3), mem::transmute(next2), EWIDTH); // [a13, a14, a15, a16]
+                    let compare0 = _mm_alignr_epi8(
+                        mem::transmute(next0),
+                        mem::transmute(current),
+                        EWIDTH,
+                    ); // [a1, a2, a3, a4]
+                    let compare1 = _mm_alignr_epi8(
+                        mem::transmute(next1),
+                        mem::transmute(next0),
+                        EWIDTH,
+                    ); // [a5, a6, a7, a8]
+                    let compare2 = _mm_alignr_epi8(
+                        mem::transmute(next2),
+                        mem::transmute(next1),
+                        EWIDTH,
+                    ); // [a9, a10, a11, a12]
+                    let compare3 = _mm_alignr_epi8(
+                        mem::transmute(next3),
+                        mem::transmute(next2),
+                        EWIDTH,
+                    ); // [a13, a14, a15, a16]
 
                     // [a0 <= a1, a1 <= a2, a2 <= a3, a3 <= a4]
-                    let mask0 = _mm_cmple_ps(current, mem::transmute(compare0));
+                    let mask0 =
+                        _mm_cmple_ps(current, mem::transmute(compare0));
                     // [a4 <= a5, a5 <= a6, a6 <= a7, a7 <= a8]
                     let mask1 = _mm_cmple_ps(next0, mem::transmute(compare1));
                     // [a8 <= a9, a9 <= a10, a10 <= a11, a11 <= a12]
@@ -1184,7 +1205,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
 
 #[cfg(test)]
 mod tests {
-    use ::{IsSorted};
+    use IsSorted;
     extern crate rand;
     extern crate std;
     use self::rand::{thread_rng, Rng};
@@ -1195,21 +1216,19 @@ mod tests {
         ($name:ident, $id:ident) => {
             #[test]
             fn $name() {
-
                 #[cfg(feature = "unstable")]
                 macro_rules! cmp {
                     () => {
                         ::PartialLessUnwrapped
-                    }
+                    };
                 }
 
                 #[cfg(not(feature = "unstable"))]
                 macro_rules! cmp {
                     () => {
                         |a, b| a.partial_cmp(b).unwrap()
-                    }
+                    };
                 }
-
 
                 fn random_vec(x: usize) -> Vec<$id> {
                     let mut vec = Vec::with_capacity(x);
@@ -1222,51 +1241,31 @@ mod tests {
                 }
 
                 let x = [1., 2., 3., 4.];
-                assert!(
-                    x.iter()
-                        .is_sorted_by(cmp!())
-                );
+                assert!(x.iter().is_sorted_by(cmp!()));
 
                 let x: [$id; 0] = [];
-                assert!(
-                    x.iter()
-                        .is_sorted_by(cmp!())
-                );
+                assert!(x.iter().is_sorted_by(cmp!()));
 
                 let x = [0 as $id];
-                assert!(
-                    x.iter()
-                        .is_sorted_by(cmp!())
-                );
+                assert!(x.iter().is_sorted_by(cmp!()));
 
                 let max = ::std::$id::INFINITY;
                 let min = -max;
 
                 let x = [min, max];
-                assert!(
-                    x.iter()
-                        .is_sorted_by(cmp!())
-                );
+                assert!(x.iter().is_sorted_by(cmp!()));
 
                 let x = [1 as $id, 2., 3., 4.];
-                assert!(
-                    x.iter()
-                        .is_sorted_by(cmp!())
-                );
+                assert!(x.iter().is_sorted_by(cmp!()));
 
                 let x = [1 as $id, 3., 2., 4.];
-                assert!(!x.iter()
-                        .is_sorted_by(cmp!()));
+                assert!(!x.iter().is_sorted_by(cmp!()));
 
                 let x = [4 as $id, 3., 2., 1.];
-                assert!(!x.iter()
-                        .is_sorted_by(cmp!()));
+                assert!(!x.iter().is_sorted_by(cmp!()));
 
                 let x = [4 as $id, 4., 4., 4.];
-                assert!(
-                    x.iter()
-                        .is_sorted_by(cmp!())
-                );
+                assert!(x.iter().is_sorted_by(cmp!()));
 
                 let mut v = Vec::new();
                 for _ in 0..2 {
@@ -1275,11 +1274,7 @@ mod tests {
                 for _ in 0..2 {
                     v.push(max);
                 }
-                assert!(
-                    v.as_slice()
-                        .iter()
-                        .is_sorted_by(cmp!())
-                );
+                assert!(v.as_slice().iter().is_sorted_by(cmp!()));
 
                 let mut v = Vec::new();
                 for _ in 0..4 {
@@ -1288,51 +1283,39 @@ mod tests {
                 for _ in 0..5 {
                     v.push(max);
                 }
-                assert!(
-                    v.as_slice()
-                        .iter()
-                        .is_sorted_by(cmp!())
-                );
+                assert!(v.as_slice().iter().is_sorted_by(cmp!()));
 
                 for i in 0..1_000 {
                     let mut vec: Vec<$id> = random_vec(i);
                     vec.sort_by(cmp!());
                     assert!(
-                        vec.as_slice()
-                            .iter()
-                            .is_sorted_by(cmp!()),
+                        vec.as_slice().iter().is_sorted_by(cmp!()),
                         "is_sorted0: {:?}",
                         vec
                     );
                     if i > 4 {
                         vec.push(min);
                         assert!(
-                            !vec.as_slice()
-                                .iter()
-                                .is_sorted_by(cmp!()),
+                            !vec.as_slice().iter().is_sorted_by(cmp!()),
                             "!is_sorted1: {:?}",
                             vec
                         );
                         vec.insert(i / 3 * 2, min);
                         assert!(
-                            !vec.as_slice()
-                                .iter()
-                                .is_sorted_by(cmp!()),
+                            !vec.as_slice().iter().is_sorted_by(cmp!()),
                             "!is_sorted2: {:?}",
                             vec
                         );
                         vec.insert(0, max);
                         assert!(
-                            !vec.as_slice()
-                                .iter()
-                                .is_sorted_by(cmp!()),
+                            !vec.as_slice().iter().is_sorted_by(cmp!()),
                             "!is_sorted3: {:?}",
                             vec
                         );
                     }
                 }
             }
-        }
+        };
     }
 
     test_float!(test_f32, f32);
