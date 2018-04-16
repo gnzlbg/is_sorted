@@ -15,6 +15,7 @@ The crate requires nightly and uses the following nightly features:
 * `fn_traits`, `unboxed_closures`: to implement the comparison callables
 * `specialization`: to specialize the algorithms for pairs of types and callables
 * `stdsimd`: `std::arch` is used by the specialization to explicitly vectorize the algorithms
+* `target_feature`: use to enable the appropriate target-features of the specialized algorithms
 * `align_offset`: is used to handle misaligned inputs in the vectorized algorithms
 
 ## License
