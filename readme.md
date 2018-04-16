@@ -34,14 +34,29 @@ nightly-only features:
   target-features of the specialized algorithms
 * `align_offset`: is used to handle misaligned inputs in the vectorized algorithms
 
-Explicit vectorization delivers a 2x throughput increase over the
-auto-vectorized versions produced by `rustc`, just run:
-
->$ cargo bench
+Explicit vectorization delivers between 1.6x and 6.5x speed-ups over the code
+produced by `rustc`, just run:
 
 >$ cargo bench --features unstable
 
-and see for yourself.
+and see for yourself. On my machine:
+
+```shell
+test run_16i_baseline  ... bench:   1,030,343 ns/iter (+/- 128,024)
+test run_16i_is_sorted ... bench:     291,504 ns/iter (+/- 36,711) # 3.5x
+test run_16u_baseline  ... bench:   1,030,282 ns/iter (+/- 133,204) 
+test run_16u_is_sorted ... bench:     339,998 ns/iter (+/- 72,954) # 3x
+test run_32f_baseline  ... bench:   3,186,189 ns/iter (+/- 1,879,466)
+test run_32f_is_sorted ... bench:     666,493 ns/iter (+/- 164,823) # 4.8x
+test run_32i_baseline  ... bench:   1,061,721 ns/iter (+/- 144,198) 
+test run_32i_is_sorted ... bench:     603,093 ns/iter (+/- 104,585) # 1.7x
+test run_32u_baseline  ... bench:   1,064,075 ns/iter (+/- 158,429)
+test run_32u_is_sorted ... bench:     666,817 ns/iter (+/- 135,030) # 1.6x
+test run_8i_baseline   ... bench:   1,837,582 ns/iter (+/- 529,630)
+test run_8i_is_sorted  ... bench:     284,903 ns/iter (+/- 82,538) # 6.5x
+test run_8u_baseline   ... bench:   1,972,757 ns/iter (+/- 347,044)
+test run_8u_is_sorted  ... bench:     316,199 ns/iter (+/- 42,681) # 6.2x
+```
 
 ## License
 

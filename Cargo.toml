@@ -2,6 +2,22 @@
 name = "is_sorted"
 version = "0.1.0"
 authors = ["gnzlbg <gonzalobg88@gmail.com>"]
+description = "Is an Iterator sorted?"
+documentation = "https://docs.rs/crate/is_sorted/"
+homepage = "https://github.com/gnzlbg/is_sorted"
+repository = "https://github.com/gnzlbg/is_sorted"
+readme = "readme.md"
+keywords = ["algorithm", "simd", "sort"]
+categories = ["algorithms", "no-std"]
+license = "MIT/Apache-2.0"
+
+[badges]
+appveyor = { repository = "gnzlbg/is_sorted" }
+travis-ci = { repository = "gnzlbg/is_sorted" }
+codecov = { repository = "gnzlbg/is_sorted" }
+is-it-maintained-issue-resolution = { repository = "gnzlbg/is_sorted" }
+is-it-maintained-open-issues = { repository = "gnzlbg/is_sorted" }
+maintenance = { status = "experimental" }
 
 [features]
 default = [ "use_std" ]
@@ -10,3 +26,12 @@ use_std = []
 
 [dev-dependencies]
 rand = "0.4.*"
+
+[profile.bench]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
