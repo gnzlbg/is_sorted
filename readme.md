@@ -35,7 +35,12 @@ nightly-only features:
 * `align_offset`: is used to handle misaligned inputs in the vectorized algorithms
 
 Explicit vectorization delivers a 2x throughput increase over the
-auto-vectorized versions produced by `rustc`.
+auto-vectorized versions produced by `rustc`, just run:
+
+> cargo bench
+> cargo bench --features unstable
+
+and see for yourself.
 
 ## License
 

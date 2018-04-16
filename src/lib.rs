@@ -335,6 +335,17 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
     }
 }
 
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(feature = "use_std", target_feature = "sse4.1"))]
+impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
+    #[inline]
+    fn is_sorted_by(&mut self, compare: ord::Less) -> bool {
+        let x: &mut slice::Iter<'a, u32> = unsafe { mem::transmute(self) };
+        IsSortedBy::is_sorted_by(x, compare)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use IsSorted;
