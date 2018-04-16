@@ -3,7 +3,7 @@
 //! sorted in `O(N)` time and `O(1)` space.
 #![no_std]
 
-#![feature(specialization, fn_traits, unboxed_closures, stdsimd, align_offset)]
+#![feature(specialization, fn_traits, unboxed_closures, stdsimd, align_offset, target_feature)]
 
 use core::{mem, slice, cmp::Ordering};
 
@@ -69,7 +69,7 @@ pub trait IsSorted: Iterator {
         where Self: Sized,
               Self::Item: Ord,
     {
-        self.is_sorted_by(<Self::Item as Ord>::cmp)
+        self.is_sorted_by(Less)
     }
 
     /// Returns `true` if the elements of the iterator
@@ -169,18 +169,20 @@ fn is_sorted_by_scalar_impl<I,F>(iter: &mut I, mut compare: F) -> bool
     true
 }
 
-/// Specialization for iterator over &[u32] and increasing order.
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+/// Specialization for iterator over &[u32] and increasing order for SSE4.1.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", target_feature = "sse4.1"))]
 impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
     #[inline]
     fn is_sorted_by(&mut self, _compare: ord::Less) -> bool {
-        unsafe {
+        #[inline]
+        #[target_feature(enable = "sse4.1")]
+        unsafe fn sse41_impl<'a>(x: &mut slice::Iter<'a, u32>) -> bool {
             #[cfg(target_arch = "x86_64")]
             use core::arch::x86_64::*;
             #[cfg(target_arch = "x86")]
             use core::arch::x86::*;
 
-            let s = self.as_slice();
+            let s = x.as_slice();
             let n = s.len() as isize;
 
             // If the slice has zero or one elements, it is sorted:
@@ -209,7 +211,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
             }
 
             // `i` points to the first element of the slice at a 16-byte boundary.
-            // Use the SSE2 algorithm from HeroicKatora
+            // Use the SSE4.1 algorithm from HeroicKatora
             // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
             // to handle the body of the slice.
             if (n - i) >= 20 {
@@ -255,6 +257,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
             debug_assert!(i == n - 1);
             true
         }
+        unsafe { sse41_impl(self) }
     }
 }
 
