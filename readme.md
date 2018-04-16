@@ -6,17 +6,17 @@ sorted according to some order in `O(N)` time and `O(1)` space.
 
 The algorithm to do this is obviously pretty trivial, but this allows this crate
 to showcases a couple of intermediate-level techniques that are useful when
-writing Rust components:
+writing Rust components. This crates shows how to:
 
-* how to use specialization to provide more efficient implementations for
+* extend `Iterator` with your own algorithms
+* use specialization to provide more efficient implementations for
   certain type-comparison pairs
-* how to use `stdsimd`, `target_feature`, and `cfg_target_feature` to
+* use `stdsimd`, `target_feature`, and `cfg_target_feature` to
   explicitly-vectorize some of the specializations using both compile-time (for
   `#![no_std]` users) and run-time (for `std` users) feature detection
-* how to implement callables that can be specialized on using `fn_traits` and
+* implement callables that can be specialized on using `fn_traits` and
   `unboxed_closures`
-* how to support stable users even though the crate uses a lot of nightly-only
-  features
+* support stable users even though the crate uses a lot of nightly-only features
 
 The crate also adds the following callables that enable specialization based on
 the comparison operation being used:
