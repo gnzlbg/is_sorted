@@ -919,7 +919,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u16> {
 /// Specialization for iterator over &[i8] and increasing order.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(any(feature = "use_std", target_feature = "sse4.1"))]
+#[cfg(any(feature = "use_std", any(target_feature = "sse4.1", target_feature = "avx2")))]
 impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
     #[inline]
     fn is_sorted_by(&mut self, compare: ord::Less) -> bool {
@@ -987,14 +987,91 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
             is_sorted_handle_tail!(s, n, i)
         }
 
+        #[inline]
+        #[target_feature(enable = "avx2")]
+        unsafe fn avx2_i8_impl<'a>(x: &mut slice::Iter<'a, i8>) -> bool {
+            #[cfg(target_arch = "x86")]
+            use arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use arch::x86_64::*;
+
+            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i8, 32);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
+
+            // `i` points to the first element of the slice at a 16-byte
+            // boundary. Use the SSE4.1 algorithm from HeroicKatora
+            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
+            // to handle the body of the slice.
+            const LVECS: isize = 4; // #of vectors in the loop
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 32; // #lanes in each vector
+            const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
+            const EWIDTH: i32 = 1; // width of the vector elements
+            if (n - i) >= MIN_LEN {
+                let mut current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a31]
+                while i < n - STRIDE {
+                    // == 16 | the last vector of current is the first of next
+                    let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a32,..,a63]
+                    let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a64,..,a95]
+                    let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a96,..,a127]
+                    let next3 = _mm256_load_si256(ap(i + 4 * NLANES)); // [a128,..a159]
+
+                    let compare0 = _mm256_alignr_epi8(next0, current, EWIDTH); // [a1,..,a32]
+                    let compare1 = _mm256_alignr_epi8(next1, next0, EWIDTH); // [a33,..,a64]
+                    let compare2 = _mm256_alignr_epi8(next2, next1, EWIDTH); // [a65,..,a96]
+                    let compare3 = _mm256_alignr_epi8(next3, next2, EWIDTH); // [a97,..,a128]
+
+                    // [a0 > a1,..,a31 > a32]
+                    let mask0 = _mm256_cmpgt_epi32(current, compare0);
+                    // [a32 > a33,..,a63 > a64]
+                    let mask1 = _mm256_cmpgt_epi32(next0, compare1);
+                    // [a64 > a65,..,a95 > a96]
+                    let mask2 = _mm256_cmpgt_epi32(next1, compare2);
+                    // [a96 > a97,..,a127 > a128]
+                    let mask3 = _mm256_cmpgt_epi32(next2, compare3);
+
+                    // mask = mask0 | mask1 | mask2 | mask3
+                    let mask = _mm256_or_si256(
+                        _mm256_or_si256(mask0, mask1),
+                        _mm256_or_si256(mask2, mask3),
+                    );
+
+                    // mask & mask == 0: if some gt comparison was true, the
+                    // mask will have some bits set. The result of bitwise & of
+                    // the mask with itself is only zero if all of the bits of
+                    // the mask are zero. Therefore, if some comparison
+                    // succeeded, there will be some non-zero bit, and all
+                    // zeros would return false (aka 0).
+                    if _mm256_testz_si256(mask, mask) == 0 {
+                        return false;
+                    }
+
+                    current = next3;
+
+                    i += STRIDE;
+                }
+            }
+
+            is_sorted_handle_tail!(s, n, i)
+        }
+
+
         #[cfg(not(feature = "use_std"))]
         unsafe {
-            sse41_i8_impl(self)
+            #[cfg(not(target_feature = "avx2"))] {
+                sse41_i8_impl(self)
+            }
+            #[cfg(target_feature = "avx2")] {
+                avx2_i8_impl(self)
+            }
         }
 
         #[cfg(feature = "use_std")]
         {
-            if is_x86_feature_detected!("sse4.1") {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { avx2_i8_impl(self) }
+            } else if is_x86_feature_detected!("sse4.1") {
                 unsafe { sse41_i8_impl(self) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
