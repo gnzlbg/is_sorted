@@ -3,7 +3,6 @@
 set -ex
 
 : ${TARGET?"The TARGET environment variable must be set."}
-: ${TRAVIS_RUST_VERSION?"The TRAVIS_RUST_VERSION environment variable must be set."}
 
 export RUST_TEST_THREADS=1
 export RUST_BACKTRACE=1
