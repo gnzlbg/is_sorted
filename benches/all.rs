@@ -7,7 +7,6 @@ extern crate test;
 use test::black_box;
 use test::Bencher;
 
-
 #[bench]
 fn large_i32(b: &mut Bencher) {
     let n = 1_000_000;

@@ -1,16 +1,31 @@
-# `is_sorted`: is an iterator sorted
+# `is_sorted`: is an `Iterator` sorted
 
 This crate extends the `Iterator` trait with the `is_sorted`, `is_sorted_by`,
 and `is_sorted_by_key` methods that check whether the iterator elements are
-sorted according to some order. 
+sorted according to some order in `O(N)` time and `O(1)` space. 
 
-It also adds the following callables that enable specialization based on the
-comparison operation being used:
+The algorithm to do this is obviously pretty trivial, but this allows this crate
+to showcases a couple of intermediate-level techniques that are useful when
+writing Rust components:
+
+* how to use specialization to provide more efficient implementations for
+  certain type-comparison pairs
+* how to use `stdsimd`, `target_feature`, and `cfg_target_feature` to
+  explicitly-vectorize some of the specializations using both compile-time (for
+  `#![no_std]` users) and run-time (for `std` users) feature detection
+* how to implement callables that can be specialized on using `fn_traits` and
+  `unboxed_closures`
+* how to support stable users even though the crate uses a lot of nightly-only
+  features
+
+The crate also adds the following callables that enable specialization based on
+the comparison operation being used:
 
 * `is_sorted::Less`: equivalent to `a.cmp(b)`
 * `is_sorted::Greater`: equivalent to `a.cmp(b).reverse()`
 
-The crate requires nightly and uses the following nightly features:
+When compiled with `--features unstable` the crate makes use of the following
+nightly-only features:
 
 * `fn_traits`, `unboxed_closures`: to implement the comparison callables
 * `specialization`: to specialize the algorithms for pairs of types and callables

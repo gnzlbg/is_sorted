@@ -1,19 +1,30 @@
 //! Extends `Iterator` with three algorithms, `is_sorted`, `is_sorted_by`, and
 //! `is_sorted_by_key` that check whether the elements of an `Iterator` are
 //! sorted in `O(N)` time and `O(1)` space.
+
+// If the `use_std` feature is not enable, compile for `no_std`:
 #![cfg_attr(not(feature = "use_std"), no_std)]
 
-#![feature(specialization, fn_traits, unboxed_closures, stdsimd, align_offset,
-           target_feature, cfg_target_feature)]
+// If the `unstable` feature is enabled, enable nightly-only features:
+#![cfg_attr(
+    feature = "unstable",
+    feature(
+        specialization, fn_traits, unboxed_closures, stdsimd, align_offset,
+        target_feature, cfg_target_feature
+    )
+)]
 
 #[cfg(not(feature = "use_std"))]
-use core::{mem, slice, cmp, arch};
+use core as std;
 
-#[cfg(feature = "use_std")]
-use std::{mem, slice, cmp, arch};
+use std::{cmp};
+
+#[cfg(all(feature = "use_std", feature = "unstable"))]
+use std::{arch, mem, slice};
 
 use cmp::Ordering;
 
+#[cfg(feature = "unstable")]
 mod ord {
     use cmp::Ordering;
 
@@ -22,13 +33,17 @@ mod ord {
 
     impl<'a, 'b, T: Ord> FnOnce<(&'a T, &'b T)> for Less {
         type Output = Ordering;
-        extern "rust-call" fn call_once(self, arg: (&'a T, &'b T)) -> Self::Output {
+        extern "rust-call" fn call_once(
+            self, arg: (&'a T, &'b T),
+        ) -> Self::Output {
             arg.0.cmp(arg.1)
         }
     }
 
     impl<'a, 'b, T: Ord> FnMut<(&'a T, &'b T)> for Less {
-        extern "rust-call" fn call_mut(&mut self, arg: (&'a T, &'b T)) -> Self::Output {
+        extern "rust-call" fn call_mut(
+            &mut self, arg: (&'a T, &'b T),
+        ) -> Self::Output {
             arg.0.cmp(arg.1)
         }
     }
@@ -38,27 +53,34 @@ mod ord {
 
     impl<'a, 'b, T: Ord> FnOnce<(&'a T, &'b T)> for Greater {
         type Output = Ordering;
-        extern "rust-call" fn call_once(self, arg: (&'a T, &'b T)) -> Self::Output {
+        extern "rust-call" fn call_once(
+            self, arg: (&'a T, &'b T),
+        ) -> Self::Output {
             arg.0.cmp(arg.1).reverse()
         }
     }
 
     impl<'a, 'b, T: Ord> FnMut<(&'a T, &'b T)> for Greater {
-        extern "rust-call" fn call_mut(&mut self, arg: (&'a T, &'b T)) -> Self::Output {
+        extern "rust-call" fn call_mut(
+            &mut self, arg: (&'a T, &'b T),
+        ) -> Self::Output {
             arg.0.cmp(arg.1).reverse()
         }
     }
 }
 
 /// Function object equivalent to `Ord::cmp(a, b)`.
+#[cfg(feature = "unstable")]
 #[allow(non_upper_case_globals)]
 pub const Less: ord::Less = ord::Less();
 
 /// Function object equivalent to `Ord::cmp(a, b).reverse()`.
+#[cfg(feature = "unstable")]
 #[allow(non_upper_case_globals)]
 pub const Greater: ord::Greater = ord::Greater();
 
-/// Extends `Iterator` with `is_sorted`, `is_sorted_by`, and `is_sorted_by_key`.
+/// Extends `Iterator` with `is_sorted`, `is_sorted_by`, and
+/// `is_sorted_by_key`.
 pub trait IsSorted: Iterator {
     /// Returns `true` if the elements of the iterator are sorted in increasing
     /// order according to `<Self::Item as Ord>::cmp`.
@@ -73,10 +95,16 @@ pub trait IsSorted: Iterator {
     /// ```
     #[inline]
     fn is_sorted(&mut self) -> bool
-        where Self: Sized,
-              Self::Item: Ord,
+    where
+        Self: Sized,
+        Self::Item: Ord,
     {
-        self.is_sorted_by(Less)
+        #[cfg(feature = "unstable")] {
+            self.is_sorted_by(Less)
+        }
+        #[cfg(not(feature = "unstable"))] {
+            self.is_sorted_by(<Self::Item as Ord>::cmp)
+        }
     }
 
     /// Returns `true` if the elements of the iterator
@@ -98,8 +126,9 @@ pub trait IsSorted: Iterator {
     /// ```
     #[inline]
     fn is_sorted_by<F>(&mut self, compare: F) -> bool
-        where Self: Sized,
-              F: FnMut(&Self::Item, &Self::Item) -> Ordering
+    where
+        Self: Sized,
+        F: FnMut(&Self::Item, &Self::Item) -> Ordering,
     {
         is_sorted_by_impl(self, compare)
     }
@@ -117,9 +146,10 @@ pub trait IsSorted: Iterator {
     /// ```
     #[inline]
     fn is_sorted_by_key<F, B>(&mut self, mut key: F) -> bool
-        where Self: Sized,
-              B: Ord,
-              F: FnMut(&Self::Item) -> B,
+    where
+        Self: Sized,
+        B: Ord,
+        F: FnMut(&Self::Item) -> B,
     {
         self.map(|v| key(&v)).is_sorted()
     }
@@ -130,18 +160,19 @@ impl<I: Iterator> IsSorted for I {}
 
 // This function dispatch to the appropriate `is_sorted_by` implementation.
 #[inline]
-fn is_sorted_by_impl<I,F>(iter: &mut I, compare: F) -> bool
-    where I: Iterator,
-          F: FnMut(&I::Item, &I::Item) -> Ordering,
+fn is_sorted_by_impl<I, F>(iter: &mut I, compare: F) -> bool
+where
+    I: Iterator,
+    F: FnMut(&I::Item, &I::Item) -> Ordering,
 {
     <I as IsSortedBy<F>>::is_sorted_by(iter, compare)
 }
 
-
 // This trait is used to provide specialized implementations of `is_sorted_by`
 // for different (Iterator,Cmp) pairs:
 trait IsSortedBy<F>: Iterator
-    where F: FnMut(&Self::Item, &Self::Item) -> Ordering
+where
+    F: FnMut(&Self::Item, &Self::Item) -> Ordering,
 {
     fn is_sorted_by(&mut self, compare: F) -> bool;
 }
@@ -149,19 +180,29 @@ trait IsSortedBy<F>: Iterator
 // This blanket implementation acts as the fall-back, and just forwards to the
 // scalar implementation of the algorithm.
 impl<I, F> IsSortedBy<F> for I
-    where I: Iterator,
-          F: FnMut(&I::Item, &I::Item) -> Ordering {
+where
+    I: Iterator,
+    F: FnMut(&I::Item, &I::Item) -> Ordering,
+{
     #[inline]
+    #[cfg(feature = "unstable")]
     default fn is_sorted_by(&mut self, compare: F) -> bool {
+        is_sorted_by_scalar_impl(self, compare)
+    }
+
+    #[inline]
+    #[cfg(not(feature = "unstable"))]
+    fn is_sorted_by(&mut self, compare: F) -> bool {
         is_sorted_by_scalar_impl(self, compare)
     }
 }
 
 /// Scalar `is_sorted_by` implementation.
 #[inline]
-fn is_sorted_by_scalar_impl<I,F>(iter: &mut I, mut compare: F) -> bool
-    where I: Iterator,
-          F: FnMut(&I::Item, &I::Item) -> Ordering,
+fn is_sorted_by_scalar_impl<I, F>(iter: &mut I, mut compare: F) -> bool
+where
+    I: Iterator,
+    F: FnMut(&I::Item, &I::Item) -> Ordering,
 {
     let first = iter.next();
     if let Some(mut first) = first {
@@ -184,6 +225,7 @@ fn is_sorted_by_scalar_impl<I,F>(iter: &mut I, mut compare: F) -> bool
 ///
 /// If `std` is not available, include this specialization only when the
 /// target supports `SSE4.1` at compile-time.
+#[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[cfg(any(feature = "use_std", target_feature = "sse4.1"))]
 impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
@@ -192,10 +234,10 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
         #[inline]
         #[target_feature(enable = "sse4.1")]
         unsafe fn sse41_impl<'a>(x: &mut slice::Iter<'a, u32>) -> bool {
-            #[cfg(target_arch = "x86_64")]
-            use arch::x86_64::*;
             #[cfg(target_arch = "x86")]
             use arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use arch::x86_64::*;
 
             let s = x.as_slice();
             let n = s.len() as isize;
@@ -205,18 +247,20 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
                 return true;
             }
 
-            let ap = |i| {
-                (s.as_ptr().offset(i)) as *const __m128i
-            };
+            let ap = |i| (s.as_ptr().offset(i)) as *const __m128i;
 
             let mut i: isize = 0;
 
-            // The first element of the slice might not be aligned to a 16-byte boundary.
-            // Handle the elements until the first 16-byte boundary using the scalar algorithm
+            // The first element of the slice might not be aligned to a
+            // 16-byte boundary. Handle the elements until the
+            // first 16-byte boundary using the scalar algorithm
             {
-                let mut a = s.as_ptr().align_offset(16) / mem::size_of::<u32>();
+                let mut a =
+                    s.as_ptr().align_offset(16) / mem::size_of::<u32>();
                 while a > 0 && i < n {
-                    if s.get_unchecked(i as usize) > s.get_unchecked(i as usize + 1) {
+                    if s.get_unchecked(i as usize)
+                        > s.get_unchecked(i as usize + 1)
+                    {
                         return false;
                     }
                     i += 1;
@@ -225,37 +269,37 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
                 debug_assert!(ap(i).align_offset(16) == 0);
             }
 
-            // `i` points to the first element of the slice at a 16-byte boundary.
-            // Use the SSE4.1 algorithm from HeroicKatora
+            // `i` points to the first element of the slice at a 16-byte
+            // boundary. Use the SSE4.1 algorithm from HeroicKatora
             // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
             // to handle the body of the slice.
             if (n - i) >= 20 {
-		            let mut curr = _mm_load_si128(ap(i));
+                let mut curr = _mm_load_si128(ap(i));
                 while i < n - 16 {
                     let next0 = _mm_load_si128(ap(i + 4));
                     let next1 = _mm_load_si128(ap(i + 8));
                     let next2 = _mm_load_si128(ap(i + 12));
                     let next3 = _mm_load_si128(ap(i + 16));
 
-			              let compare0 = _mm_alignr_epi8(next0, curr, 4);
-			              let compare1 = _mm_alignr_epi8(next1, next0, 4);
-			              let compare2 = _mm_alignr_epi8(next2, next1, 4);
-			              let compare3 = _mm_alignr_epi8(next3, next2, 4);
+                    let compare0 = _mm_alignr_epi8(next0, curr, 4);
+                    let compare1 = _mm_alignr_epi8(next1, next0, 4);
+                    let compare2 = _mm_alignr_epi8(next2, next1, 4);
+                    let compare3 = _mm_alignr_epi8(next3, next2, 4);
 
                     let mask0 = _mm_cmpgt_epi32(curr, compare0);
                     let mask1 = _mm_cmpgt_epi32(next0, compare1);
                     let mask2 = _mm_cmpgt_epi32(next1, compare2);
                     let mask3 = _mm_cmpgt_epi32(next2, compare3);
 
-			              let mergedmask = _mm_or_si128(
-				                _mm_or_si128(mask0, mask1),
-				                _mm_or_si128(mask2, mask3)
+                    let mergedmask = _mm_or_si128(
+                        _mm_or_si128(mask0, mask1),
+                        _mm_or_si128(mask2, mask3),
                     );
                     if _mm_test_all_zeros(mergedmask, mergedmask) == 0 {
                         return false;
                     }
 
-			              curr = next3;
+                    curr = next3;
 
                     i += 16;
                 }
@@ -263,7 +307,9 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
 
             // Handle the tail of the slice using the scalar algoirithm:
             while i < n - 1 {
-                if s.get_unchecked(i as usize) > s.get_unchecked(i as usize + 1) {
+                if s.get_unchecked(i as usize)
+                    > s.get_unchecked(i as usize + 1)
+                {
                     return false;
                 }
                 i += 1;
@@ -273,7 +319,9 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
             true
         }
         #[cfg(not(feature = "use_std"))]
-        unsafe { sse41_impl(self) }
+        unsafe {
+            sse41_impl(self)
+        }
 
         #[cfg(feature = "use_std")]
         {
@@ -286,20 +334,28 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use ::{IsSorted, Less};
+    use {IsSorted};
     extern crate std;
+
+    #[cfg(feature = "unstable")]
     use self::std::vec::Vec;
+
+    #[cfg(feature = "unstable")]
+    use {Less};
 
     #[test]
     fn floats() {
         let x = [1., 2., 3., 4.];
-        assert!(x.iter().is_sorted_by(|a,b| a.partial_cmp(b).unwrap()));
+        assert!(
+            x.iter()
+                .is_sorted_by(|a, b| a.partial_cmp(b).unwrap())
+        );
     }
 
     #[test]
+    #[cfg(feature = "unstable")]
     fn u32_small() {
         let x: [u32; 0] = [];
         assert!(x.iter().is_sorted_by(Less));
@@ -315,6 +371,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "unstable")]
     fn u32_large() {
         let mut v = Vec::new();
         for i in 0..1000 {
