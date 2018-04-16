@@ -856,10 +856,10 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
                     let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a48,..,a63]
                     let next3 = _mm256_load_si256(ap(i + 4 * NLANES)); // [a64,..a79]
 
-                    let compare0 = _mm256_alignr_epi16(next0, current, EWIDTH); // [a1,..,a16]
-                    let compare1 = _mm256_alignr_epi16(next1, next0, EWIDTH); // [a17,..,a32]
-                    let compare2 = _mm256_alignr_epi16(next2, next1, EWIDTH); // [a33,..,a48]
-                    let compare3 = _mm256_alignr_epi16(next3, next2, EWIDTH); // [a49,..,a64]
+                    let compare0 = _mm256_alignr_epi8(next0, current, EWIDTH); // [a1,..,a16]
+                    let compare1 = _mm256_alignr_epi8(next1, next0, EWIDTH); // [a17,..,a32]
+                    let compare2 = _mm256_alignr_epi8(next2, next1, EWIDTH); // [a33,..,a48]
+                    let compare3 = _mm256_alignr_epi8(next3, next2, EWIDTH); // [a49,..,a64]
 
                     // [a0 > a1,..,a15 > a16]
                     let mask0 = _mm256_cmpgt_epi32(current, compare0);
