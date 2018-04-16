@@ -1189,7 +1189,6 @@ mod tests {
     extern crate std;
     use self::rand::{thread_rng, Rng};
 
-    #[cfg(feature = "unstable")]
     use self::std::vec::Vec;
 
     macro_rules! test_float {
