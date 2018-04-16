@@ -47,7 +47,7 @@ mod ord {
         }
     }
 
-    /// Equivalent to `Ord::cmp(a, b).invert()`
+    /// Equivalent to `Ord::cmp(a, b).reverse()`
     pub struct Greater();
 
     impl<'a, 'b, T: Ord> FnOnce<(&'a T, &'b T)> for Greater {
@@ -66,17 +66,68 @@ mod ord {
             arg.0.cmp(arg.1).reverse()
         }
     }
+
+    /// Equivalent to `PartialOrd::partial_cmp(a, b).unwrap()`
+    pub struct PartialLessUnwrapped();
+
+    impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)> for PartialLessUnwrapped {
+        type Output = Ordering;
+        extern "rust-call" fn call_once(
+            self, arg: (&'a T, &'b T),
+        ) -> Self::Output {
+            arg.0.partial_cmp(arg.1).unwrap()
+        }
+    }
+
+    impl<'a, 'b, T: PartialOrd> FnMut<(&'a T, &'b T)> for PartialLessUnwrapped {
+        extern "rust-call" fn call_mut(
+            &mut self, arg: (&'a T, &'b T),
+        ) -> Self::Output {
+            arg.0.partial_cmp(arg.1).unwrap()
+        }
+    }
+
+    /// Equivalent to `PartialOrd::partial_cmp(a, b).unwrap().reverse()`
+    pub struct PartialGreaterUnwrapped();
+
+    impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)> for PartialGreaterUnwrapped {
+        type Output = Ordering;
+        extern "rust-call" fn call_once(
+            self, arg: (&'a T, &'b T),
+        ) -> Self::Output {
+            arg.0.partial_cmp(arg.1).unwrap().reverse()
+        }
+    }
+
+    impl<'a, 'b, T: PartialOrd> FnMut<(&'a T, &'b T)> for PartialGreaterUnwrapped {
+        extern "rust-call" fn call_mut(
+            &mut self, arg: (&'a T, &'b T),
+        ) -> Self::Output {
+            arg.0.partial_cmp(arg.1).unwrap().reverse()
+        }
+    }
+
 }
 
-/// Function object equivalent to `Ord::cmp(a, b)`.
+/// Callable equivalent to `Ord::cmp(a, b)`.
 #[cfg(feature = "unstable")]
 #[allow(non_upper_case_globals)]
 pub const Less: ord::Less = ord::Less();
 
-/// Function object equivalent to `Ord::cmp(a, b).reverse()`.
+/// Callable equivalent to `Ord::cmp(a, b).reverse()`.
 #[cfg(feature = "unstable")]
 #[allow(non_upper_case_globals)]
 pub const Greater: ord::Greater = ord::Greater();
+
+/// Callable equivalent to `PartialOrd::partial_cmp(a, b).unwrap()`.
+#[cfg(feature = "unstable")]
+#[allow(non_upper_case_globals)]
+pub const PartialLessUnwrapped: ord::PartialLessUnwrapped = ord::PartialLessUnwrapped();
+
+/// Callable equivalent to `PartialOrd::partial_cmp(a, b).unwrap().reverse()`.
+#[cfg(feature = "unstable")]
+#[allow(non_upper_case_globals)]
+pub const PartialGreaterUnwrapped: ord::PartialGreaterUnwrapped = ord::PartialGreaterUnwrapped();
 
 /// Extends `Iterator` with `is_sorted`, `is_sorted_by`, and
 /// `is_sorted_by_key`.
@@ -274,18 +325,20 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
             // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
             // to handle the body of the slice.
             const LVECS: isize = 4; // #of vectors in the loop
-            const NVECS: isize = 1 + LVECS;  // #vectors in the loop + current
-            const NLANES: isize = 4;  // #lanes in each vector
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 4; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
-            const MIN_LEN: isize = NLANES * NVECS;  // minimum #elements required for vectorization
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
             const EWIDTH: i32 = 4; // width of the vector elements
-            if (n - i) >= MIN_LEN { // 5 vectors of 4 elements = 20
-                let mut current = _mm_load_si128(ap(i + 0*NLANES)); // [a0, a1, a2, a3]
-                while i < n - STRIDE {  // == 16 | the last vector of current is the first of next
-                    let next0 = _mm_load_si128(ap(i + 1*NLANES)); // [a4, a5, a6, a7]
-                    let next1 = _mm_load_si128(ap(i + 2*NLANES)); // [a8, a9, a10, a11]
-                    let next2 = _mm_load_si128(ap(i + 3*NLANES)); // [a12, a13, a14, a15]
-                    let next3 = _mm_load_si128(ap(i + 4*NLANES)); // [a16, a17, a18, a19]
+            if (n - i) >= MIN_LEN {
+                // 5 vectors of 4 elements = 20
+                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0, a1, a2, a3]
+                while i < n - STRIDE {
+                    // == 16 | the last vector of current is the first of next
+                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a4, a5, a6, a7]
+                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a8, a9, a10, a11]
+                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a12, a13, a14, a15]
+                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a16, a17, a18, a19]
 
                     let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1, a2, a3, a4]
                     let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a5, a6, a7, a8]
@@ -311,8 +364,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
                     // mask will have some bits set. The result of bitwise & of
                     // the mask with itself is only zero if all of the bits of
                     // the mask are zero. Therefore, if some comparison
-                    // succeeded, there will be some non-zero bit, and all zeros
-                    // would return false (aka 0).
+                    // succeeded, there will be some non-zero bit, and all
+                    // zeros would return false (aka 0).
                     if _mm_test_all_zeros(mask, mask) == 0 {
                         return false;
                     }
@@ -402,22 +455,23 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
             // `i` points to the first element of the slice at a 16-byte
             // boundary.
             const LVECS: isize = 4; // #of vectors in the loop
-            const NVECS: isize = 1 + LVECS;  // #vectors in the loop + current
-            const NLANES: isize = 4;  // #lanes in each vector
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 4; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop
-            const MIN_LEN: isize = NLANES * NVECS;  // minimum #elements required for vectorization
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
             const EWIDTH: i32 = 4; // width of the vector elements
-            if (n - i) >= MIN_LEN {  // 5 vectors of 4 elements = 20
+            if (n - i) >= MIN_LEN {
+                // 5 vectors of 4 elements = 20
                 // note: an alternative algorithm would be to add
                 // i32::min_value() to each element of the vector and then use
                 // the same algorithm as for signed integers. That approach
                 // proved slower than this approach.
-                let mut current = _mm_load_si128(ap(i + 0*NLANES)); // [a0, a1, a2, a3]
+                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0, a1, a2, a3]
                 while i < n - STRIDE {
-                    let next0 = _mm_load_si128(ap(i + 1*NLANES)); // [a4, a5, a6, a7]
-                    let next1 = _mm_load_si128(ap(i + 2*NLANES)); // [a8, a9, a10, a11]
-                    let next2 = _mm_load_si128(ap(i + 3*NLANES)); // [a12, a13, a14, a15]
-                    let next3 = _mm_load_si128(ap(i + 4*NLANES)); // [a16, a17, a18, a19]
+                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a4, a5, a6, a7]
+                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a8, a9, a10, a11]
+                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a12, a13, a14, a15]
+                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a16, a17, a18, a19]
 
                     let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1, a2, a3, a4]
                     let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a5, a6, a7, a8]
@@ -426,13 +480,19 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
 
                     // a <= b <=> a == minu(a,b):
                     // [a0 <= a1, a1 <= a2, a2 <= a3, a3 <= a4]
-                    let mask0 = _mm_cmpeq_epi32(current, _mm_min_epu32(current, compare0));
+                    let mask0 = _mm_cmpeq_epi32(
+                        current,
+                        _mm_min_epu32(current, compare0),
+                    );
                     // [a4 <= a5, a5 <= a6, a6 <= a7, a7 <= a8]
-                    let mask1 = _mm_cmpeq_epi32(next0, _mm_min_epu32(next0, compare1));
+                    let mask1 =
+                        _mm_cmpeq_epi32(next0, _mm_min_epu32(next0, compare1));
                     // [a8 <= a9, a9 <= a10, a10 <= a11, a11 <= a12]
-                    let mask2 = _mm_cmpeq_epi32(next1, _mm_min_epu32(next1, compare2));
+                    let mask2 =
+                        _mm_cmpeq_epi32(next1, _mm_min_epu32(next1, compare2));
                     // [a12 <= a13, a13 <= a14, a14 <= a15, a15 <= a16]
-                    let mask3 = _mm_cmpeq_epi32(next2, _mm_min_epu32(next2, compare3));
+                    let mask3 =
+                        _mm_cmpeq_epi32(next2, _mm_min_epu32(next2, compare3));
 
                     // mask = mask0 && mask1 && mask2 && mask3
                     let mask = _mm_and_si128(
@@ -474,6 +534,135 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
         {
             if is_x86_feature_detected!("sse4.1") {
                 unsafe { sse41_i32_impl(self) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
+/// Specialization for iterator over &[f32] and increasing order.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(feature = "use_std", target_feature = "sse4.1"))]
+impl<'a> IsSortedBy<ord::PartialLessUnwrapped> for slice::Iter<'a, f32> {
+    #[inline]
+    fn is_sorted_by(&mut self, compare: ord::PartialLessUnwrapped) -> bool {
+        #[inline]
+        #[target_feature(enable = "sse4.1")]
+        unsafe fn sse41_f32_impl<'a>(x: &mut slice::Iter<'a, f32>) -> bool {
+            #[cfg(target_arch = "x86")]
+            use arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use arch::x86_64::*;
+
+            let s = x.as_slice();
+            let n = s.len() as isize;
+            // If the slice has zero or one elements, it is sorted:
+            if n < 2 {
+                return true;
+            }
+
+            let ap = |i| s.as_ptr().offset(i);
+
+            let mut i: isize = 0;
+
+            // The first element of the slice might not be aligned to a
+            // 16-byte boundary. Handle the elements until the
+            // first 16-byte boundary using the scalar algorithm
+            {
+                let mut a =
+                    s.as_ptr().align_offset(16) / mem::size_of::<f32>();
+                while a > 0 && i < n - 1 {
+                    if s.get_unchecked(i as usize)
+                        > s.get_unchecked(i as usize + 1)
+                    {
+                        return false;
+                    }
+                    i += 1;
+                    a -= 1;
+                }
+                debug_assert!(i == n - 1 || ap(i).align_offset(16) == 0);
+            }
+
+            // `i` points to the first element of the slice at a 16-byte
+            // boundary. Use the SSE4.1 algorithm from HeroicKatora
+            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
+            // to handle the body of the slice.
+            const LVECS: isize = 4; // #of vectors in the loop
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 4; // #lanes in each vector
+            const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
+            const EWIDTH: i32 = 4; // width of the vector elements
+            if (n - i) >= MIN_LEN {
+                // 5 vectors of 4 elements = 20
+                let mut current = _mm_load_ps(ap(i + 0 * NLANES)); // [a0, a1, a2, a3]
+                while i < n - STRIDE {
+                    // == 16 | the last vector of current is the first of next
+                    let next0 = _mm_load_ps(ap(i + 1 * NLANES)); // [a4, a5, a6, a7]
+                    let next1 = _mm_load_ps(ap(i + 2 * NLANES)); // [a8, a9, a10, a11]
+                    let next2 = _mm_load_ps(ap(i + 3 * NLANES)); // [a12, a13, a14, a15]
+                    let next3 = _mm_load_ps(ap(i + 4 * NLANES)); // [a16, a17, a18, a19]
+
+                    let compare0 = _mm_alignr_epi8(mem::transmute(next0), mem::transmute(current), EWIDTH); // [a1, a2, a3, a4]
+                    let compare1 = _mm_alignr_epi8(mem::transmute(next1), mem::transmute(next0), EWIDTH); // [a5, a6, a7, a8]
+                    let compare2 = _mm_alignr_epi8(mem::transmute(next2), mem::transmute(next1), EWIDTH); // [a9, a10, a11, a12]
+                    let compare3 = _mm_alignr_epi8(mem::transmute(next3), mem::transmute(next2), EWIDTH); // [a13, a14, a15, a16]
+
+                    // [a0 <= a1, a1 <= a2, a2 <= a3, a3 <= a4]
+                    let mask0 = _mm_cmple_ps(current, mem::transmute(compare0));
+                    // [a4 <= a5, a5 <= a6, a6 <= a7, a7 <= a8]
+                    let mask1 = _mm_cmple_ps(next0, mem::transmute(compare1));
+                    // [a8 <= a9, a9 <= a10, a10 <= a11, a11 <= a12]
+                    let mask2 = _mm_cmple_ps(next1, mem::transmute(compare2));
+                    // [a12 <= a13, a13 <= a14, a14 <= a15, a15 <= a16]
+                    let mask3 = _mm_cmple_ps(next2, mem::transmute(compare3));
+
+                    // mask = mask0 | mask1 | mask2 | mask3
+                    let mask = _mm_and_ps(
+                        _mm_and_ps(mask0, mask1),
+                        _mm_and_ps(mask2, mask3),
+                    );
+
+                    // mask & mask == 0: if some gt comparison was true, the
+                    // mask will have some bits set. The result of bitwise & of
+                    // the mask with itself is only zero if all of the bits of
+                    // the mask are zero. Therefore, if some comparison
+                    // succeeded, there will be some non-zero bit, and all
+                    // zeros would return false (aka 0).
+                    if _mm_test_all_ones(mem::transmute(mask)) == 0 {
+                        return false;
+                    }
+
+                    current = next3;
+
+                    i += STRIDE;
+                }
+            }
+
+            // Handle the tail of the slice using the scalar algoirithm:
+            while i < n - 1 {
+                if s.get_unchecked(i as usize)
+                    > s.get_unchecked(i as usize + 1)
+                {
+                    return false;
+                }
+                i += 1;
+            }
+            debug_assert!(i == n - 1);
+            true
+        }
+
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            sse41_f32_impl(self)
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("sse4.1") {
+                unsafe { sse41_f32_impl(self) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
             }
@@ -530,18 +719,20 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
             // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
             // to handle the body of the slice.
             const LVECS: isize = 4; // #of vectors in the loop
-            const NVECS: isize = 1 + LVECS;  // #vectors in the loop + current
-            const NLANES: isize = 8;  // #lanes in each vector
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 8; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
-            const MIN_LEN: isize = NLANES * NVECS;  // minimum #elements required for vectorization
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
             const EWIDTH: i32 = 2; // width of the vector elements
-            if (n - i) >= MIN_LEN { // == 40: no vectors * no lanes
-                let mut current = _mm_load_si128(ap(i + 0*NLANES)); // [a0..a7]
-                while i < n - STRIDE { // == 32 | the last vector of current is the first of next
-                    let next0 = _mm_load_si128(ap(i + 1*NLANES)); // [a8..a15]
-                    let next1 = _mm_load_si128(ap(i + 2*NLANES)); // [a16..a23]
-                    let next2 = _mm_load_si128(ap(i + 3*NLANES)); // [a24..a31]
-                    let next3 = _mm_load_si128(ap(i + 4*NLANES)); // [a32..a39]
+            if (n - i) >= MIN_LEN {
+                // == 40: no vectors * no lanes
+                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0..a7]
+                while i < n - STRIDE {
+                    // == 32 | the last vector of current is the first of next
+                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a8..a15]
+                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a16..a23]
+                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a24..a31]
+                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a32..a39]
 
                     let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1..a8]
                     let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a9..a16]
@@ -563,8 +754,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
                     // mask will have some bits set. The result of bitwise & of
                     // the mask with itself is only zero if all of the bits of
                     // the mask are zero. Therefore, if some comparison
-                    // succeeded, there will be some non-zero bit, and all zeros
-                    // would return false (aka 0).
+                    // succeeded, there will be some non-zero bit, and all
+                    // zeros would return false (aka 0).
                     if _mm_test_all_zeros(mask, mask) == 0 {
                         return false;
                     }
@@ -653,18 +844,20 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u16> {
             // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
             // to handle the body of the slice.
             const LVECS: isize = 4; // #of vectors in the loop
-            const NVECS: isize = 1 + LVECS;  // #vectors in the loop + current
-            const NLANES: isize = 8;  // #lanes in each vector
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 8; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
-            const MIN_LEN: isize = NLANES * NVECS;  // minimum #elements required for vectorization
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
             const EWIDTH: i32 = 2; // width of the vector elements
-            if (n - i) >= MIN_LEN { // == 40: no vectors * no lanes
-                let mut current = _mm_load_si128(ap(i + 0*NLANES)); // [a0..a7]
-                while i < n - STRIDE { // == 32 | the last vector of current is the first of next
-                    let next0 = _mm_load_si128(ap(i + 1*NLANES)); // [a8..a15]
-                    let next1 = _mm_load_si128(ap(i + 2*NLANES)); // [a16..a23]
-                    let next2 = _mm_load_si128(ap(i + 3*NLANES)); // [a24..a31]
-                    let next3 = _mm_load_si128(ap(i + 4*NLANES)); // [a32..a39]
+            if (n - i) >= MIN_LEN {
+                // == 40: no vectors * no lanes
+                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0..a7]
+                while i < n - STRIDE {
+                    // == 32 | the last vector of current is the first of next
+                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a8..a15]
+                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a16..a23]
+                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a24..a31]
+                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a32..a39]
 
                     let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1..a8]
                     let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a9..a16]
@@ -673,13 +866,19 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u16> {
 
                     // a <= b <=> a == minu(a,b):
                     // [a0 <= a1,..,a7 <= a8]
-                    let mask0 = _mm_cmpeq_epi16(current, _mm_min_epu16(current, compare0));
+                    let mask0 = _mm_cmpeq_epi16(
+                        current,
+                        _mm_min_epu16(current, compare0),
+                    );
                     // [a8 <= a9,..,a15 <= a16]
-                    let mask1 = _mm_cmpeq_epi16(next0, _mm_min_epu16(next0, compare1));
+                    let mask1 =
+                        _mm_cmpeq_epi16(next0, _mm_min_epu16(next0, compare1));
                     // [a16 <= a17,.., a23 <= a24]
-                    let mask2 = _mm_cmpeq_epi16(next1, _mm_min_epu16(next1, compare2));
+                    let mask2 =
+                        _mm_cmpeq_epi16(next1, _mm_min_epu16(next1, compare2));
                     // [a24 <= a25,..,a31 <= a32]
-                    let mask3 = _mm_cmpeq_epi16(next2, _mm_min_epu16(next2, compare3));
+                    let mask3 =
+                        _mm_cmpeq_epi16(next2, _mm_min_epu16(next2, compare3));
 
                     // mask = mask0 && mask1 && mask2 && mask3
                     let mask = _mm_and_si128(
@@ -758,8 +957,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
             // 16-byte boundary. Handle the elements until the
             // first 16-byte boundary using the scalar algorithm
             {
-                let mut a =
-                    s.as_ptr().align_offset(16) / mem::size_of::<i8>();
+                let mut a = s.as_ptr().align_offset(16) / mem::size_of::<i8>();
                 while a > 0 && i < n - 1 {
                     if s.get_unchecked(i as usize)
                         > s.get_unchecked(i as usize + 1)
@@ -777,18 +975,20 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
             // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
             // to handle the body of the slice.
             const LVECS: isize = 4; // #of vectors in the loop
-            const NVECS: isize = 1 + LVECS;  // #vectors in the loop + current
-            const NLANES: isize = 16;  // #lanes in each vector
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 16; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
-            const MIN_LEN: isize = NLANES * NVECS;  // minimum #elements required for vectorization
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
             const EWIDTH: i32 = 1; // width of the vector elements
-            if (n - i) >= MIN_LEN { // == 40: no vectors * no lanes
-                let mut current = _mm_load_si128(ap(i + 0*NLANES)); // [a0..a7]
-                while i < n - STRIDE { // == 32 | the last vector of current is the first of next
-                    let next0 = _mm_load_si128(ap(i + 1*NLANES)); // [a8..a15]
-                    let next1 = _mm_load_si128(ap(i + 2*NLANES)); // [a16..a23]
-                    let next2 = _mm_load_si128(ap(i + 3*NLANES)); // [a24..a31]
-                    let next3 = _mm_load_si128(ap(i + 4*NLANES)); // [a32..a39]
+            if (n - i) >= MIN_LEN {
+                // == 40: no vectors * no lanes
+                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0..a7]
+                while i < n - STRIDE {
+                    // == 32 | the last vector of current is the first of next
+                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a8..a15]
+                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a16..a23]
+                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a24..a31]
+                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a32..a39]
 
                     let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1..a8]
                     let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a9..a16]
@@ -810,8 +1010,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
                     // mask will have some bits set. The result of bitwise & of
                     // the mask with itself is only zero if all of the bits of
                     // the mask are zero. Therefore, if some comparison
-                    // succeeded, there will be some non-zero bit, and all zeros
-                    // would return false (aka 0).
+                    // succeeded, there will be some non-zero bit, and all
+                    // zeros would return false (aka 0).
                     if _mm_test_all_zeros(mask, mask) == 0 {
                         return false;
                     }
@@ -881,8 +1081,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
             // 16-byte boundary. Handle the elements until the
             // first 16-byte boundary using the scalar algorithm
             {
-                let mut a =
-                    s.as_ptr().align_offset(16) / mem::size_of::<u8>();
+                let mut a = s.as_ptr().align_offset(16) / mem::size_of::<u8>();
                 while a > 0 && i < n - 1 {
                     if s.get_unchecked(i as usize)
                         > s.get_unchecked(i as usize + 1)
@@ -900,18 +1099,20 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
             // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
             // to handle the body of the slice.
             const LVECS: isize = 4; // #of vectors in the loop
-            const NVECS: isize = 1 + LVECS;  // #vectors in the loop + current
-            const NLANES: isize = 16;  // #lanes in each vector
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 16; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
-            const MIN_LEN: isize = NLANES * NVECS;  // minimum #elements required for vectorization
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
             const EWIDTH: i32 = 1; // width of the vector elements
-            if (n - i) >= MIN_LEN { // == 40: no vectors * no lanes
-                let mut current = _mm_load_si128(ap(i + 0*NLANES)); // [a0..a7]
-                while i < n - STRIDE { // == 32 | the last vector of current is the first of next
-                    let next0 = _mm_load_si128(ap(i + 1*NLANES)); // [a8..a15]
-                    let next1 = _mm_load_si128(ap(i + 2*NLANES)); // [a16..a23]
-                    let next2 = _mm_load_si128(ap(i + 3*NLANES)); // [a24..a31]
-                    let next3 = _mm_load_si128(ap(i + 4*NLANES)); // [a32..a39]
+            if (n - i) >= MIN_LEN {
+                // == 40: no vectors * no lanes
+                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0..a7]
+                while i < n - STRIDE {
+                    // == 32 | the last vector of current is the first of next
+                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a8..a15]
+                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a16..a23]
+                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a24..a31]
+                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a32..a39]
 
                     let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1..a8]
                     let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a9..a16]
@@ -920,13 +1121,19 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
 
                     // a <= b <=> a == minu(a,b):
                     // [a0 <= a1,..,a7 <= a8]
-                    let mask0 = _mm_cmpeq_epi8(current, _mm_min_epu8(current, compare0));
+                    let mask0 = _mm_cmpeq_epi8(
+                        current,
+                        _mm_min_epu8(current, compare0),
+                    );
                     // [a8 <= a9,..,a15 <= a16]
-                    let mask1 = _mm_cmpeq_epi8(next0, _mm_min_epu8(next0, compare1));
+                    let mask1 =
+                        _mm_cmpeq_epi8(next0, _mm_min_epu8(next0, compare1));
                     // [a16 <= a17,.., a23 <= a24]
-                    let mask2 = _mm_cmpeq_epi8(next1, _mm_min_epu8(next1, compare2));
+                    let mask2 =
+                        _mm_cmpeq_epi8(next1, _mm_min_epu8(next1, compare2));
                     // [a24 <= a25,..,a31 <= a32]
-                    let mask3 = _mm_cmpeq_epi8(next2, _mm_min_epu8(next2, compare3));
+                    let mask3 =
+                        _mm_cmpeq_epi8(next2, _mm_min_epu8(next2, compare3));
 
                     // mask = mask0 && mask1 && mask2 && mask3
                     let mask = _mm_and_si128(
@@ -975,25 +1182,162 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use IsSorted;
-    extern crate std;
+    use ::{IsSorted};
     extern crate rand;
-    use self::rand::{Rng, thread_rng};
+    extern crate std;
+    use self::rand::{thread_rng, Rng};
 
     #[cfg(feature = "unstable")]
     use self::std::vec::Vec;
 
-    #[test]
-    fn floats() {
-        let x = [1., 2., 3., 4.];
-        assert!(
-            x.iter()
-                .is_sorted_by(|a, b| a.partial_cmp(b).unwrap())
-        );
+    macro_rules! test_float {
+        ($name:ident, $id:ident) => {
+            #[test]
+            fn $name() {
+
+                #[cfg(feature = "unstable")]
+                macro_rules! cmp {
+                    () => {
+                        ::PartialLessUnwrapped
+                    }
+                }
+
+                #[cfg(not(feature = "unstable"))]
+                macro_rules! cmp {
+                    () => {
+                        |a, b| a.partial_cmp(b).unwrap()
+                    }
+                }
+
+
+                fn random_vec(x: usize) -> Vec<$id> {
+                    let mut vec = Vec::with_capacity(x);
+                    let mut rng = thread_rng();
+                    for _ in 0..x {
+                        let val: $id = rng.gen_range(0. as $id, 1. as $id);
+                        vec.push(val);
+                    }
+                    vec
+                }
+
+                let x = [1., 2., 3., 4.];
+                assert!(
+                    x.iter()
+                        .is_sorted_by(cmp!())
+                );
+
+                let x: [$id; 0] = [];
+                assert!(
+                    x.iter()
+                        .is_sorted_by(cmp!())
+                );
+
+                let x = [0 as $id];
+                assert!(
+                    x.iter()
+                        .is_sorted_by(cmp!())
+                );
+
+                let max = ::std::$id::INFINITY;
+                let min = -max;
+
+                let x = [min, max];
+                assert!(
+                    x.iter()
+                        .is_sorted_by(cmp!())
+                );
+
+                let x = [1 as $id, 2., 3., 4.];
+                assert!(
+                    x.iter()
+                        .is_sorted_by(cmp!())
+                );
+
+                let x = [1 as $id, 3., 2., 4.];
+                assert!(!x.iter()
+                        .is_sorted_by(cmp!()));
+
+                let x = [4 as $id, 3., 2., 1.];
+                assert!(!x.iter()
+                        .is_sorted_by(cmp!()));
+
+                let x = [4 as $id, 4., 4., 4.];
+                assert!(
+                    x.iter()
+                        .is_sorted_by(cmp!())
+                );
+
+                let mut v = Vec::new();
+                for _ in 0..2 {
+                    v.push(min);
+                }
+                for _ in 0..2 {
+                    v.push(max);
+                }
+                assert!(
+                    v.as_slice()
+                        .iter()
+                        .is_sorted_by(cmp!())
+                );
+
+                let mut v = Vec::new();
+                for _ in 0..4 {
+                    v.push(min);
+                }
+                for _ in 0..5 {
+                    v.push(max);
+                }
+                assert!(
+                    v.as_slice()
+                        .iter()
+                        .is_sorted_by(cmp!())
+                );
+
+                for i in 0..1_000 {
+                    let mut vec: Vec<$id> = random_vec(i);
+                    vec.sort_by(cmp!());
+                    assert!(
+                        vec.as_slice()
+                            .iter()
+                            .is_sorted_by(cmp!()),
+                        "is_sorted0: {:?}",
+                        vec
+                    );
+                    if i > 4 {
+                        vec.push(min);
+                        assert!(
+                            !vec.as_slice()
+                                .iter()
+                                .is_sorted_by(cmp!()),
+                            "!is_sorted1: {:?}",
+                            vec
+                        );
+                        vec.insert(i / 3 * 2, min);
+                        assert!(
+                            !vec.as_slice()
+                                .iter()
+                                .is_sorted_by(cmp!()),
+                            "!is_sorted2: {:?}",
+                            vec
+                        );
+                        vec.insert(0, max);
+                        assert!(
+                            !vec.as_slice()
+                                .iter()
+                                .is_sorted_by(cmp!()),
+                            "!is_sorted3: {:?}",
+                            vec
+                        );
+                    }
+                }
+            }
+        }
     }
+
+    test_float!(test_f32, f32);
+    test_float!(test_f64, f64);
 
     macro_rules! small {
         ($name:ident, $id:ident) => {
@@ -1003,12 +1347,12 @@ mod tests {
                     let mut vec = Vec::with_capacity(x);
                     let mut rng = thread_rng();
                     for _ in 0..x {
-                        let val: $id = rng.gen_range($id::min_value(), $id::max_value());
+                        let val: $id =
+                            rng.gen_range($id::min_value(), $id::max_value());
                         vec.push(val);
                     }
                     vec
                 }
-
 
                 let x: [$id; 0] = [];
                 assert!(x.iter().is_sorted());
@@ -1055,18 +1399,34 @@ mod tests {
                 for i in 0..1_000 {
                     let mut vec: Vec<$id> = random_vec(i);
                     vec.sort();
-                    assert!(vec.as_slice().iter().is_sorted(), "is_sorted0: {:?}", vec);
+                    assert!(
+                        vec.as_slice().iter().is_sorted(),
+                        "is_sorted0: {:?}",
+                        vec
+                    );
                     if i > 4 {
                         vec.push($id::min_value());
-                        assert!(!vec.as_slice().iter().is_sorted(), "!is_sorted1: {:?}", vec);
-                        vec.insert(i/3*2, $id::min_value());
-                        assert!(!vec.as_slice().iter().is_sorted(), "!is_sorted2: {:?}", vec);
+                        assert!(
+                            !vec.as_slice().iter().is_sorted(),
+                            "!is_sorted1: {:?}",
+                            vec
+                        );
+                        vec.insert(i / 3 * 2, $id::min_value());
+                        assert!(
+                            !vec.as_slice().iter().is_sorted(),
+                            "!is_sorted2: {:?}",
+                            vec
+                        );
                         vec.insert(0, $id::max_value());
-                        assert!(!vec.as_slice().iter().is_sorted(), "!is_sorted3: {:?}", vec);
+                        assert!(
+                            !vec.as_slice().iter().is_sorted(),
+                            "!is_sorted3: {:?}",
+                            vec
+                        );
                     }
                 }
             }
-        }
+        };
     }
     small!(small_i8, i8);
     small!(small_u8, u8);
@@ -1133,7 +1493,7 @@ mod tests {
                 }
                 assert!(v.as_slice().iter().is_sorted());
             }
-        }
+        };
     }
     large!(i8_large, i8);
     large!(u8_large, u8);
