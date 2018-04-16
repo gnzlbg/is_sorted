@@ -1,5 +1,8 @@
 # `is_sorted`: is an `Iterator` sorted
 
+[![crates.io version][crate-shield]][crate] [![Travis build status][travis-shield]][travis] [![Appveyor build status][appveyor-shield]][appveyor] [![Docs][docs-shield]][docs] [![License][license-shield]][license]
+
+
 This crate extends the `Iterator` trait with the `is_sorted`, `is_sorted_by`,
 and `is_sorted_by_key` methods that check whether the iterator elements are
 sorted according to some order in `O(N)` time and `O(1)` space. 
@@ -72,3 +75,14 @@ at your option.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in SliceDeque by you, as defined in the Apache-2.0 license, shall
 be dual licensed as above, without any additional terms or conditions.
+
+[travis-shield]: https://img.shields.io/travis/gnzlbg/is_sorted.svg?style=flat-square
+[travis]: https://travis-ci.org/gnzlbg/is_sorted
+[appveyor-shield]: https://img.shields.io/appveyor/ci/gnzlbg/is-sorted.svg?style=flat-square
+[appveyor]: https://ci.appveyor.com/project/gnzlbg/is-sorted/branch/master
+[docs-shield]: https://img.shields.io/badge/docs-online-blue.svg?style=flat-square
+[docs]: https://docs.rs/crate/is-sorted/
+[license-shield]: https://img.shields.io/badge/License-MIT%2FApache2.0-green.svg?style=flat-square
+[license]: https://github.com/gnzlbg/is_sorted/blob/master/license.md
+[crate-shield]: https://img.shields.io/crates/v/is_sorted.svg?style=flat-square
+[crate]: https://crates.io/crates/is_sorted
