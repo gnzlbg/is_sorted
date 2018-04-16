@@ -20,7 +20,7 @@ matrix:
     os: osx
     osx_image: xcode9.2
 
-script: ci.run.sh
+script: ci/run.sh
 
 notifications:
   email:
