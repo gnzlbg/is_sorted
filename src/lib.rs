@@ -1,14 +1,21 @@
 //! Extends `Iterator` with three algorithms, `is_sorted`, `is_sorted_by`, and
 //! `is_sorted_by_key` that check whether the elements of an `Iterator` are
 //! sorted in `O(N)` time and `O(1)` space.
-#![no_std]
+#![cfg_attr(not(feature = "use_std"), no_std)]
 
-#![feature(specialization, fn_traits, unboxed_closures, stdsimd, align_offset, target_feature)]
+#![feature(specialization, fn_traits, unboxed_closures, stdsimd, align_offset,
+           target_feature, cfg_target_feature)]
 
-use core::{mem, slice, cmp::Ordering};
+#[cfg(not(feature = "use_std"))]
+use core::{mem, slice, cmp, arch};
+
+#[cfg(feature = "use_std")]
+use std::{mem, slice, cmp, arch};
+
+use cmp::Ordering;
 
 mod ord {
-    use ::core::cmp::Ordering;
+    use cmp::Ordering;
 
     /// Equivalent to `Ord::cmp(a, b)`
     pub struct Less();
@@ -169,8 +176,16 @@ fn is_sorted_by_scalar_impl<I,F>(iter: &mut I, mut compare: F) -> bool
     true
 }
 
-/// Specialization for iterator over &[u32] and increasing order for SSE4.1.
-#[cfg(any(target_arch = "x86", target_arch = "x86_64", target_feature = "sse4.1"))]
+/// Specialization for iterator over &[u32] and increasing order.
+///
+/// If `std` is available, always include this and perform run-time feature
+/// detection inside it to select the `SSE4.1` algorithm when the CPU supports
+/// it.
+///
+/// If `std` is not available, include this specialization only when the
+/// target supports `SSE4.1` at compile-time.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(feature = "use_std", target_feature = "sse4.1"))]
 impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
     #[inline]
     fn is_sorted_by(&mut self, _compare: ord::Less) -> bool {
@@ -178,9 +193,9 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
         #[target_feature(enable = "sse4.1")]
         unsafe fn sse41_impl<'a>(x: &mut slice::Iter<'a, u32>) -> bool {
             #[cfg(target_arch = "x86_64")]
-            use core::arch::x86_64::*;
+            use arch::x86_64::*;
             #[cfg(target_arch = "x86")]
-            use core::arch::x86::*;
+            use arch::x86::*;
 
             let s = x.as_slice();
             let n = s.len() as isize;
@@ -257,7 +272,17 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
             debug_assert!(i == n - 1);
             true
         }
+        #[cfg(not(feature = "use_std"))]
         unsafe { sse41_impl(self) }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("sse4.1") {
+                unsafe { sse41_impl(self) }
+            } else {
+                is_sorted_by_scalar_impl(self, _compare)
+            }
+        }
     }
 }
 
