@@ -40,11 +40,11 @@ nightly-only features:
 * `align_offset`: is used to handle misaligned inputs in the vectorized algorithms
 
 Explicit vectorization delivers between 1.6x and 6.5x speed-ups over the code
-produced by `rustc`, just run:
+produced by `rustc` for some iterators, just run:
 
 >$ cargo bench --features unstable
 
-and see for yourself. On my machine:
+and see for yourself. On my machine for slices:
 
 ```shell
 test run_16i_baseline  ... bench:   1,030,343 ns/iter (+/- 128,024)

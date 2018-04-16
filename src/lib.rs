@@ -273,6 +273,61 @@ where
     true
 }
 
+
+/// Checks whether a slice is sorted until the first element aligned with a
+/// $boundary (16 for 16-byte boundary). Returns a (i,n,s) tuple where `i` is
+/// the index of the next element in the slice aligned to a 16-byte boundary,
+/// `n` the slice length, and `s` the slice.
+macro_rules! is_sorted_handle_unaligned_head_int {
+    ($x:ident, $ty:ident, $boundary:expr) => {{
+        let s = $x.as_slice();
+        let n = s.len() as isize;
+        // If the slice has zero or one elements, it is sorted:
+        if n < 2 {
+            return true;
+        }
+
+        let mut i: isize = 0;
+
+        // The first element of the slice might not be aligned to a
+        // 16-byte boundary. Handle the elements until the
+        // first 16-byte boundary using the scalar algorithm
+        {
+            let mut a = s.as_ptr().align_offset($boundary) / mem::size_of::<$ty>();
+            while a > 0 && i < n - 1 {
+                if s.get_unchecked(i as usize)
+                    > s.get_unchecked(i as usize + 1)
+                {
+                    return false;
+                }
+                i += 1;
+                a -= 1;
+            }
+            debug_assert!(i == n - 1 || s.as_ptr().offset(i).align_offset($boundary) == 0);
+        }
+
+        (i, n, s)
+    }}
+}
+
+/// Handles the tail of the `slice` `s` of length `n` starting at index `i`
+/// using a scalar loop:
+macro_rules! is_sorted_handle_tail {
+    ($s:ident, $n:ident, $i:ident) => {{
+        // Handle the tail of the slice using the scalar algoirithm:
+        while $i < $n - 1 {
+            if $s.get_unchecked($i as usize)
+                > $s.get_unchecked($i as usize + 1)
+            {
+                return false;
+            }
+            $i += 1;
+        }
+        debug_assert!($i == $n - 1);
+        true
+    }}
+}
+
 /// Specialization for iterator over &[i32] and increasing order.
 ///
 /// If `std` is available, always include this and perform run-time feature
@@ -283,7 +338,7 @@ where
 /// target supports `SSE4.1` at compile-time.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(any(feature = "use_std", target_feature = "sse4.1"))]
+#[cfg(any(feature = "use_std", any(target_feature = "sse4.1", target_feature = "avx2")))]
 impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
     #[inline]
     fn is_sorted_by(&mut self, compare: ord::Less) -> bool {
@@ -295,34 +350,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let s = x.as_slice();
-            let n = s.len() as isize;
-            // If the slice has zero or one elements, it is sorted:
-            if n < 2 {
-                return true;
-            }
-
-            let ap = |i| (s.as_ptr().offset(i)) as *const __m128i;
-
-            let mut i: isize = 0;
-
-            // The first element of the slice might not be aligned to a
-            // 16-byte boundary. Handle the elements until the
-            // first 16-byte boundary using the scalar algorithm
-            {
-                let mut a =
-                    s.as_ptr().align_offset(16) / mem::size_of::<i32>();
-                while a > 0 && i < n - 1 {
-                    if s.get_unchecked(i as usize)
-                        > s.get_unchecked(i as usize + 1)
-                    {
-                        return false;
-                    }
-                    i += 1;
-                    a -= 1;
-                }
-                debug_assert!(i == n - 1 || ap(i).align_offset(16) == 0);
-            }
+            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i32, 16);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
             // boundary. Use the SSE4.1 algorithm from HeroicKatora
@@ -336,26 +365,26 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
             const EWIDTH: i32 = 4; // width of the vector elements
             if (n - i) >= MIN_LEN {
                 // 5 vectors of 4 elements = 20
-                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0, a1, a2, a3]
+                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0,..,a3]
                 while i < n - STRIDE {
                     // == 16 | the last vector of current is the first of next
-                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a4, a5, a6, a7]
-                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a8, a9, a10, a11]
-                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a12, a13, a14, a15]
-                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a16, a17, a18, a19]
+                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a4,..,a7]
+                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a8,..,a11]
+                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a12,..,a15]
+                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a16,..a19]
 
-                    let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1, a2, a3, a4]
-                    let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a5, a6, a7, a8]
-                    let compare2 = _mm_alignr_epi8(next2, next1, EWIDTH); // [a9, a10, a11, a12]
-                    let compare3 = _mm_alignr_epi8(next3, next2, EWIDTH); // [a13, a14, a15, a16]
+                    let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1,..,a4]
+                    let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a5,..,a8]
+                    let compare2 = _mm_alignr_epi8(next2, next1, EWIDTH); // [a9,..,a12]
+                    let compare3 = _mm_alignr_epi8(next3, next2, EWIDTH); // [a13,..,a16]
 
-                    // [a0 > a1, a1 > a2, a2 > a3, a3 > a4]
+                    // [a0 > a1,..,a3 > a4]
                     let mask0 = _mm_cmpgt_epi32(current, compare0);
-                    // [a4 > a5, a5 > a6, a6 > a7, a7 > a8]
+                    // [a4 > a5,..,a7 > a8]
                     let mask1 = _mm_cmpgt_epi32(next0, compare1);
-                    // [a8 > a9, a9 > a10, a10 > a11, a11 > a12]
+                    // [a8 > a9,..,a11 > a12]
                     let mask2 = _mm_cmpgt_epi32(next1, compare2);
-                    // [a12 > a13, a13 > a14, a14 > a15, a15 > a16]
+                    // [a12 > a13,..,a15 > a16]
                     let mask3 = _mm_cmpgt_epi32(next2, compare3);
 
                     // mask = mask0 | mask1 | mask2 | mask3
@@ -380,27 +409,93 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
                 }
             }
 
-            // Handle the tail of the slice using the scalar algoirithm:
-            while i < n - 1 {
-                if s.get_unchecked(i as usize)
-                    > s.get_unchecked(i as usize + 1)
-                {
-                    return false;
+            is_sorted_handle_tail!(s, n, i)
+        }
+
+        #[inline]
+        #[target_feature(enable = "avx2")]
+        unsafe fn avx2_i32_impl<'a>(x: &mut slice::Iter<'a, i32>) -> bool {
+            #[cfg(target_arch = "x86")]
+            use arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use arch::x86_64::*;
+
+            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i32, 32);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
+
+            // `i` points to the first element of the slice at a 16-byte
+            // boundary. Use the SSE4.1 algorithm from HeroicKatora
+            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
+            // to handle the body of the slice.
+            const LVECS: isize = 4; // #of vectors in the loop
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 8; // #lanes in each vector
+            const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
+            const EWIDTH: i32 = 4; // width of the vector elements
+            if (n - i) >= MIN_LEN {
+                let mut current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a7]
+                while i < n - STRIDE {
+                    // == 16 | the last vector of current is the first of next
+                    let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a8,..,a16]
+                    let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a16,..,a23]
+                    let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a24,..,a31]
+                    let next3 = _mm256_load_si256(ap(i + 4 * NLANES)); // [a32,..a39]
+
+                    let compare0 = _mm256_alignr_epi8(next0, current, EWIDTH); // [a1,..,a8]
+                    let compare1 = _mm256_alignr_epi8(next1, next0, EWIDTH); // [a9,..,a16]
+                    let compare2 = _mm256_alignr_epi8(next2, next1, EWIDTH); // [a17,..,a23]
+                    let compare3 = _mm256_alignr_epi8(next3, next2, EWIDTH); // [a25,..,a32]
+
+                    // [a0 > a1,..,a7 > a8]
+                    let mask0 = _mm256_cmpgt_epi32(current, compare0);
+                    // [a8 > a9,..,a15 > a16]
+                    let mask1 = _mm256_cmpgt_epi32(next0, compare1);
+                    // [a16 > a17,..,a23 > a24]
+                    let mask2 = _mm256_cmpgt_epi32(next1, compare2);
+                    // [a24 > a25,..,a31 > a32]
+                    let mask3 = _mm256_cmpgt_epi32(next2, compare3);
+
+                    // mask = mask0 | mask1 | mask2 | mask3
+                    let mask = _mm256_or_si256(
+                        _mm256_or_si256(mask0, mask1),
+                        _mm256_or_si256(mask2, mask3),
+                    );
+
+                    // mask & mask == 0: if some gt comparison was true, the
+                    // mask will have some bits set. The result of bitwise & of
+                    // the mask with itself is only zero if all of the bits of
+                    // the mask are zero. Therefore, if some comparison
+                    // succeeded, there will be some non-zero bit, and all
+                    // zeros would return false (aka 0).
+                    if _mm256_testz_si256(mask, mask) == 0 {
+                        return false;
+                    }
+
+                    current = next3;
+
+                    i += STRIDE;
                 }
-                i += 1;
             }
-            debug_assert!(i == n - 1);
-            true
+
+            is_sorted_handle_tail!(s, n, i)
         }
 
         #[cfg(not(feature = "use_std"))]
         unsafe {
-            sse41_i32_impl(self)
+            #[cfg(not(target_feature = "avx2"))] {
+                sse41_i32_impl(self)
+            }
+            #[cfg(target_feature = "avx2")] {
+                avx2_i32_impl(self)
+            }
         }
 
         #[cfg(feature = "use_std")]
         {
-            if is_x86_feature_detected!("sse4.1") {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { avx2_i32_impl(self) }
+            } else if is_x86_feature_detected!("sse4.1") {
                 unsafe { sse41_i32_impl(self) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
@@ -424,37 +519,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let s = x.as_slice();
-            let n = s.len() as isize;
-            // If the slice has zero or one elements, it is sorted:
-            if n < 2 {
-                return true;
-            }
-            unsafe fn _a(x: __m128i) -> [u32; 4] {
-                mem::transmute(x)
-            }
-
-            let ap = |i| (s.as_ptr().offset(i)) as *const __m128i;
-
-            let mut i: isize = 0;
-
-            // The first element of the slice might not be aligned to a
-            // 16-byte boundary. Handle the elements until the
-            // first 16-byte boundary using the scalar algorithm
-            {
-                let mut a =
-                    s.as_ptr().align_offset(16) / mem::size_of::<u32>();
-                while a > 0 && i < n - 1 {
-                    if s.get_unchecked(i as usize)
-                        > s.get_unchecked(i as usize + 1)
-                    {
-                        return false;
-                    }
-                    i += 1;
-                    a -= 1;
-                }
-                debug_assert!(i == n - 1 || ap(i).align_offset(16) == 0);
-            }
+            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, u32, 16);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
             // boundary.
@@ -470,31 +536,31 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
                 // i32::min_value() to each element of the vector and then use
                 // the same algorithm as for signed integers. That approach
                 // proved slower than this approach.
-                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0, a1, a2, a3]
+                let mut current = _mm_load_si128(ap(i + 0 * NLANES)); // [a0,..,a3]
                 while i < n - STRIDE {
-                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a4, a5, a6, a7]
-                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a8, a9, a10, a11]
-                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a12, a13, a14, a15]
-                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a16, a17, a18, a19]
+                    let next0 = _mm_load_si128(ap(i + 1 * NLANES)); // [a4,..,a7]
+                    let next1 = _mm_load_si128(ap(i + 2 * NLANES)); // [a8,..,a11]
+                    let next2 = _mm_load_si128(ap(i + 3 * NLANES)); // [a12,..,a15]
+                    let next3 = _mm_load_si128(ap(i + 4 * NLANES)); // [a16,..a19]
 
-                    let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1, a2, a3, a4]
-                    let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a5, a6, a7, a8]
-                    let compare2 = _mm_alignr_epi8(next2, next1, EWIDTH); // [a9, a10, a11, a12]
-                    let compare3 = _mm_alignr_epi8(next3, next2, EWIDTH); // [a13, a14, a15, a16]
+                    let compare0 = _mm_alignr_epi8(next0, current, EWIDTH); // [a1,..,a4]
+                    let compare1 = _mm_alignr_epi8(next1, next0, EWIDTH); // [a5,..,a8]
+                    let compare2 = _mm_alignr_epi8(next2, next1, EWIDTH); // [a9,..,a12]
+                    let compare3 = _mm_alignr_epi8(next3, next2, EWIDTH); // [a13,..,a16]
 
                     // a <= b <=> a == minu(a,b):
-                    // [a0 <= a1, a1 <= a2, a2 <= a3, a3 <= a4]
+                    // [a0 <= a1,..,a3 <= a4]
                     let mask0 = _mm_cmpeq_epi32(
                         current,
                         _mm_min_epu32(current, compare0),
                     );
-                    // [a4 <= a5, a5 <= a6, a6 <= a7, a7 <= a8]
+                    // [a4 <= a5,..,a7 <= a8]
                     let mask1 =
                         _mm_cmpeq_epi32(next0, _mm_min_epu32(next0, compare1));
-                    // [a8 <= a9, a9 <= a10, a10 <= a11, a11 <= a12]
+                    // [a8 <= a9,..,a11 <= a12]
                     let mask2 =
                         _mm_cmpeq_epi32(next1, _mm_min_epu32(next1, compare2));
-                    // [a12 <= a13, a13 <= a14, a14 <= a15, a15 <= a16]
+                    // [a12 <= a13,..,a15 <= a16]
                     let mask3 =
                         _mm_cmpeq_epi32(next2, _mm_min_epu32(next2, compare3));
 
@@ -516,17 +582,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
                 }
             }
 
-            // Handle the tail of the slice using the scalar algoirithm:
-            while i < n - 1 {
-                if s.get_unchecked(i as usize)
-                    > s.get_unchecked(i as usize + 1)
-                {
-                    return false;
-                }
-                i += 1;
-            }
-            debug_assert!(i == n - 1);
-            true
+            is_sorted_handle_tail!(s, n, i)
         }
 
         #[cfg(not(feature = "use_std"))]
@@ -590,9 +646,7 @@ impl<'a> IsSortedBy<ord::PartialLessUnwrapped> for slice::Iter<'a, f32> {
             }
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. Use the SSE4.1 algorithm from HeroicKatora
-            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
-            // to handle the body of the slice.
+            // boundary. 
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 4; // #lanes in each vector
@@ -601,43 +655,43 @@ impl<'a> IsSortedBy<ord::PartialLessUnwrapped> for slice::Iter<'a, f32> {
             const EWIDTH: i32 = 4; // width of the vector elements
             if (n - i) >= MIN_LEN {
                 // 5 vectors of 4 elements = 20
-                let mut current = _mm_load_ps(ap(i + 0 * NLANES)); // [a0, a1, a2, a3]
+                let mut current = _mm_load_ps(ap(i + 0 * NLANES)); // [a0,..,a3]
                 while i < n - STRIDE {
                     // == 16 | the last vector of current is the first of next
-                    let next0 = _mm_load_ps(ap(i + 1 * NLANES)); // [a4, a5, a6, a7]
-                    let next1 = _mm_load_ps(ap(i + 2 * NLANES)); // [a8, a9, a10, a11]
-                    let next2 = _mm_load_ps(ap(i + 3 * NLANES)); // [a12, a13, a14, a15]
-                    let next3 = _mm_load_ps(ap(i + 4 * NLANES)); // [a16, a17, a18, a19]
+                    let next0 = _mm_load_ps(ap(i + 1 * NLANES)); // [a4,..,a7]
+                    let next1 = _mm_load_ps(ap(i + 2 * NLANES)); // [a8,..,a11]
+                    let next2 = _mm_load_ps(ap(i + 3 * NLANES)); // [a12,..,a15]
+                    let next3 = _mm_load_ps(ap(i + 4 * NLANES)); // [a16,..a19]
 
                     let compare0 = _mm_alignr_epi8(
                         mem::transmute(next0),
                         mem::transmute(current),
                         EWIDTH,
-                    ); // [a1, a2, a3, a4]
+                    ); // [a1,..,a4]
                     let compare1 = _mm_alignr_epi8(
                         mem::transmute(next1),
                         mem::transmute(next0),
                         EWIDTH,
-                    ); // [a5, a6, a7, a8]
+                    ); // [a5,..,a8]
                     let compare2 = _mm_alignr_epi8(
                         mem::transmute(next2),
                         mem::transmute(next1),
                         EWIDTH,
-                    ); // [a9, a10, a11, a12]
+                    ); // [a9,..,a12]
                     let compare3 = _mm_alignr_epi8(
                         mem::transmute(next3),
                         mem::transmute(next2),
                         EWIDTH,
-                    ); // [a13, a14, a15, a16]
+                    ); // [a13,..,a16]
 
-                    // [a0 <= a1, a1 <= a2, a2 <= a3, a3 <= a4]
+                    // [a0 <= a1,..,a3 <= a4]
                     let mask0 =
                         _mm_cmple_ps(current, mem::transmute(compare0));
-                    // [a4 <= a5, a5 <= a6, a6 <= a7, a7 <= a8]
+                    // [a4 <= a5,..,a7 <= a8]
                     let mask1 = _mm_cmple_ps(next0, mem::transmute(compare1));
-                    // [a8 <= a9, a9 <= a10, a10 <= a11, a11 <= a12]
+                    // [a8 <= a9,..,a11 <= a12]
                     let mask2 = _mm_cmple_ps(next1, mem::transmute(compare2));
-                    // [a12 <= a13, a13 <= a14, a14 <= a15, a15 <= a16]
+                    // [a12 <= a13,..,a15 <= a16]
                     let mask3 = _mm_cmple_ps(next2, mem::transmute(compare3));
 
                     // mask = mask0 | mask1 | mask2 | mask3
@@ -662,17 +716,7 @@ impl<'a> IsSortedBy<ord::PartialLessUnwrapped> for slice::Iter<'a, f32> {
                 }
             }
 
-            // Handle the tail of the slice using the scalar algoirithm:
-            while i < n - 1 {
-                if s.get_unchecked(i as usize)
-                    > s.get_unchecked(i as usize + 1)
-                {
-                    return false;
-                }
-                i += 1;
-            }
-            debug_assert!(i == n - 1);
-            true
+            is_sorted_handle_tail!(s, n, i)
         }
 
         #[cfg(not(feature = "use_std"))]
@@ -706,39 +750,11 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let s = x.as_slice();
-            let n = s.len() as isize;
-            // If the slice has zero or one elements, it is sorted:
-            if n < 2 {
-                return true;
-            }
-
-            let ap = |i| (s.as_ptr().offset(i)) as *const __m128i;
-
-            let mut i: isize = 0;
-
-            // The first element of the slice might not be aligned to a
-            // 16-byte boundary. Handle the elements until the
-            // first 16-byte boundary using the scalar algorithm
-            {
-                let mut a =
-                    s.as_ptr().align_offset(16) / mem::size_of::<i16>();
-                while a > 0 && i < n - 1 {
-                    if s.get_unchecked(i as usize)
-                        > s.get_unchecked(i as usize + 1)
-                    {
-                        return false;
-                    }
-                    i += 1;
-                    a -= 1;
-                }
-                debug_assert!(i == n - 1 || ap(i).align_offset(16) == 0);
-            }
+            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i16, 16);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. Use the SSE4.1 algorithm from HeroicKatora
-            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
-            // to handle the body of the slice.
+            // boundary. 
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 8; // #lanes in each vector
@@ -787,17 +803,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
                 }
             }
 
-            // Handle the tail of the slice using the scalar algoirithm:
-            while i < n - 1 {
-                if s.get_unchecked(i as usize)
-                    > s.get_unchecked(i as usize + 1)
-                {
-                    return false;
-                }
-                i += 1;
-            }
-            debug_assert!(i == n - 1);
-            true
+            is_sorted_handle_tail!(s, n, i)
         }
 
         #[cfg(not(feature = "use_std"))]
@@ -831,39 +837,11 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u16> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let s = x.as_slice();
-            let n = s.len() as isize;
-            // If the slice has zero or one elements, it is sorted:
-            if n < 2 {
-                return true;
-            }
-
-            let ap = |i| (s.as_ptr().offset(i)) as *const __m128i;
-
-            let mut i: isize = 0;
-
-            // The first element of the slice might not be aligned to a
-            // 16-byte boundary. Handle the elements until the
-            // first 16-byte boundary using the scalar algorithm
-            {
-                let mut a =
-                    s.as_ptr().align_offset(16) / mem::size_of::<u16>();
-                while a > 0 && i < n - 1 {
-                    if s.get_unchecked(i as usize)
-                        > s.get_unchecked(i as usize + 1)
-                    {
-                        return false;
-                    }
-                    i += 1;
-                    a -= 1;
-                }
-                debug_assert!(i == n - 1 || ap(i).align_offset(16) == 0);
-            }
+            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, u16, 16);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. Use the SSE4.1 algorithm from HeroicKatora
-            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
-            // to handle the body of the slice.
+            // boundary. 
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 8; // #lanes in each vector
@@ -919,17 +897,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u16> {
                 }
             }
 
-            // Handle the tail of the slice using the scalar algoirithm:
-            while i < n - 1 {
-                if s.get_unchecked(i as usize)
-                    > s.get_unchecked(i as usize + 1)
-                {
-                    return false;
-                }
-                i += 1;
-            }
-            debug_assert!(i == n - 1);
-            true
+            is_sorted_handle_tail!(s, n, i)
         }
 
         #[cfg(not(feature = "use_std"))]
@@ -963,38 +931,11 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let s = x.as_slice();
-            let n = s.len() as isize;
-            // If the slice has zero or one elements, it is sorted:
-            if n < 2 {
-                return true;
-            }
-
-            let ap = |i| (s.as_ptr().offset(i)) as *const __m128i;
-
-            let mut i: isize = 0;
-
-            // The first element of the slice might not be aligned to a
-            // 16-byte boundary. Handle the elements until the
-            // first 16-byte boundary using the scalar algorithm
-            {
-                let mut a = s.as_ptr().align_offset(16) / mem::size_of::<i8>();
-                while a > 0 && i < n - 1 {
-                    if s.get_unchecked(i as usize)
-                        > s.get_unchecked(i as usize + 1)
-                    {
-                        return false;
-                    }
-                    i += 1;
-                    a -= 1;
-                }
-                debug_assert!(i == n - 1 || ap(i).align_offset(16) == 0);
-            }
+            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i8, 16);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. Use the SSE4.1 algorithm from HeroicKatora
-            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
-            // to handle the body of the slice.
+            // boundary. 
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 16; // #lanes in each vector
@@ -1043,17 +984,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
                 }
             }
 
-            // Handle the tail of the slice using the scalar algoirithm:
-            while i < n - 1 {
-                if s.get_unchecked(i as usize)
-                    > s.get_unchecked(i as usize + 1)
-                {
-                    return false;
-                }
-                i += 1;
-            }
-            debug_assert!(i == n - 1);
-            true
+            is_sorted_handle_tail!(s, n, i)
         }
 
         #[cfg(not(feature = "use_std"))]
@@ -1087,38 +1018,11 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
             #[cfg(target_arch = "x86_64")]
             use arch::x86_64::*;
 
-            let s = x.as_slice();
-            let n = s.len() as isize;
-            // If the slice has zero or one elements, it is sorted:
-            if n < 2 {
-                return true;
-            }
-
-            let ap = |i| (s.as_ptr().offset(i)) as *const __m128i;
-
-            let mut i: isize = 0;
-
-            // The first element of the slice might not be aligned to a
-            // 16-byte boundary. Handle the elements until the
-            // first 16-byte boundary using the scalar algorithm
-            {
-                let mut a = s.as_ptr().align_offset(16) / mem::size_of::<u8>();
-                while a > 0 && i < n - 1 {
-                    if s.get_unchecked(i as usize)
-                        > s.get_unchecked(i as usize + 1)
-                    {
-                        return false;
-                    }
-                    i += 1;
-                    a -= 1;
-                }
-                debug_assert!(i == n - 1 || ap(i).align_offset(16) == 0);
-            }
+            let (mut i, n, s) = is_sorted_handle_unaligned_head_int!(x, i8, 16);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. Use the SSE4.1 algorithm from HeroicKatora
-            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
-            // to handle the body of the slice.
+            // boundary. 
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 16; // #lanes in each vector
@@ -1174,17 +1078,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
                 }
             }
 
-            // Handle the tail of the slice using the scalar algoirithm:
-            while i < n - 1 {
-                if s.get_unchecked(i as usize)
-                    > s.get_unchecked(i as usize + 1)
-                {
-                    return false;
-                }
-                i += 1;
-            }
-            debug_assert!(i == n - 1);
-            true
+            is_sorted_handle_tail!(s, n, i)
         }
 
         #[cfg(not(feature = "use_std"))]
