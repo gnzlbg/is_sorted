@@ -7,3 +7,6 @@ authors = ["gnzlbg <gonzalobg88@gmail.com>"]
 default = [ "use_std" ]
 unstable = []
 use_std = []
+
+[dev-dependencies]
+rand = "0.4.*"
