@@ -20,6 +20,10 @@ matrix:
     os: osx
     osx_image: xcode9.2
 
+  allow_failures:
+    - env: TARGET=i686-apple-darwin
+    - env: TARGET=x86_64-apple-darwin
+
 script: ci/run.sh
 
 notifications:
