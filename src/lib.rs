@@ -1276,8 +1276,14 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
 mod tests {
     use IsSorted;
     extern crate rand;
+
+    #[cfg(not(feature = "use_std"))]
     #[macro_use]
     extern crate std;
+
+    #[cfg(feature = "use_std")]
+    use super::std;
+
     use self::rand::{thread_rng, Rng};
 
     use self::std::vec::Vec;
