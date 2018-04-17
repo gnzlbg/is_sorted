@@ -26,7 +26,8 @@ macro_rules! floats_128 {
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 16;
-            let mut i = is_sorted_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i =
+                is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an
             // ALIGNMENT boundary
             let n = s.len() as isize;
@@ -99,7 +100,7 @@ macro_rules! floats_128 {
                 }
             }
 
-            is_sorted_tail!(s, n, i)
+            is_sorted_lt_tail!(s, n, i)
         }
     };
 }
@@ -109,7 +110,7 @@ pub mod sse41 {
     // `_mm_cmple_ps` requires `SSE`
     // `_mm_and_ps` requires `SSE`
     floats_128!(
-        is_sorted_f32,
+        is_sorted_lt_f32,
         "sse4.1",
         f32,
         4,
@@ -121,7 +122,7 @@ pub mod sse41 {
     // `_mm_cmple_pd` requires `SSE2`
     // `_mm_and_pd` requires `SSE2`
     floats_128!(
-        is_sorted_f64,
+        is_sorted_lt_f64,
         "sse4.1",
         f64,
         2,
@@ -145,7 +146,7 @@ macro_rules! floats_256 {
 
             // The alignment requirements for 256-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 32;
-            let mut i = is_sorted_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i = is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
             let n = s.len() as isize;
             let ap = |o| (s.as_ptr().offset(o)) as *const $id;
@@ -220,7 +221,7 @@ macro_rules! floats_256 {
                 }
             }
 
-            is_sorted_tail!(s, n, i)
+            is_sorted_lt_tail!(s, n, i)
         }
     }
 }
@@ -233,7 +234,7 @@ pub mod avx {
     // `_mm256_testc_ps` requires `AVX`
     // `_mm256_set1_ps` requires `AVX`
     floats_256!(
-        is_sorted_f32,
+        is_sorted_lt_f32,
         "avx",
         f32,
         8,
@@ -252,7 +253,7 @@ pub mod avx {
     // `_mm256_testc_pd` requires `AVX`
     // `_mm256_set1_pd` requires `AVX`
     floats_256!(
-        is_sorted_f64,
+        is_sorted_lt_f64,
         "avx",
         f64,
         4,

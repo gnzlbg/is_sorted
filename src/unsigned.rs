@@ -19,7 +19,7 @@ macro_rules! unsigned_128 {
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 16;
-            let mut i = is_sorted_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i = is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
             let n = s.len() as isize;
             let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
@@ -77,7 +77,7 @@ macro_rules! unsigned_128 {
                 }
             }
 
-            is_sorted_tail!(s, n, i)
+            is_sorted_lt_tail!(s, n, i)
         }
     }
 }
@@ -86,7 +86,7 @@ pub mod sse41 {
     // `_mm_cmpgt_epi32` requires `SSE2`
     // `_mm_min_epu32` requires `SSE4.1`
     unsigned_128!(
-        is_sorted_u32,
+        is_sorted_lt_u32,
         "sse4.1",
         u32,
         4,
@@ -96,7 +96,7 @@ pub mod sse41 {
     // `_mm_cmpgt_epi16` requires `SSE2`
     // `_mm_min_epu16` requires `SSE4.1`
     unsigned_128!(
-        is_sorted_u16,
+        is_sorted_lt_u16,
         "sse4.1",
         u16,
         8,
@@ -106,7 +106,7 @@ pub mod sse41 {
     // `_mm_cmpgt_epi8` requires `SSE2`
     // `_mm_min_epu8` requires `SSE2`
     unsigned_128!(
-        is_sorted_u8,
+        is_sorted_lt_u8,
         "sse4.1",
         u8,
         16,
@@ -135,7 +135,7 @@ macro_rules! unsigned_256 {
 
             // The alignment requirements for 256-bit wide vectors is 32 bytes:
             const ALIGNMENT: usize = 32;
-            let mut i = is_sorted_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i = is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
             let n = s.len() as isize;
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
@@ -188,7 +188,7 @@ macro_rules! unsigned_256 {
                 }
             }
 
-            is_sorted_tail!(s, n, i)
+            is_sorted_lt_tail!(s, n, i)
         }
     }
 }
@@ -197,7 +197,7 @@ pub mod avx2 {
     // `_mm256_cmpeq_epi32` requires `AVX2`
     // `_mm256_min_epu32` requires `AVX2`
     unsigned_256!(
-        is_sorted_u32,
+        is_sorted_lt_u32,
         "avx2",
         u32,
         8,
@@ -207,7 +207,7 @@ pub mod avx2 {
     // `_mm256_cmpeq_epi16` requires `AVX2`
     // `_mm256_min_epu16` requires `AVX2`
     unsigned_256!(
-        is_sorted_u16,
+        is_sorted_lt_u16,
         "avx2",
         u16,
         16,
@@ -217,7 +217,7 @@ pub mod avx2 {
     // `_mm256_cmpeq_epi8` requires `AVX2`
     // `_mm256_min_epu8` requires `AVX2`
     unsigned_256!(
-        is_sorted_u8,
+        is_sorted_lt_u8,
         "avx2",
         u8,
         32,
