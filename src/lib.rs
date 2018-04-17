@@ -1,6 +1,10 @@
 //! Extends `Iterator` with three algorithms, `is_sorted`, `is_sorted_by`, and
 //! `is_sorted_by_key` that check whether the elements of an `Iterator` are
 //! sorted in `O(N)` time and `O(1)` space.
+//!
+//! To enable explicitly-vectorized implementations enable the `unstable`
+//! nightly-only feature and use the typed comparators: `Less`, `Greater`,
+//! `PartialLessUnwrapped`, `PartialGreaterUnwrapped`.
 
 // If the `use_std` feature is not enable, compile for `no_std`:
 #![cfg_attr(not(feature = "use_std"), no_std)]
