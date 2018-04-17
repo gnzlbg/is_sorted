@@ -477,6 +477,43 @@ impl<'a> IsSortedBy<ord::types::Less> for slice::Iter<'a, u32> {
     }
 }
 
+/// Specialization for iterator over &[u32] and increasing order.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx2")
+    )
+)]
+impl<'a> IsSortedBy<ord::types::Greater> for slice::Iter<'a, u32> {
+    #[inline]
+    fn is_sorted_by(&mut self, compare: ord::types::Greater) -> bool {
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                unsafe { ::unsigned::sse41::is_sorted_gt_u32(self.as_slice()) }
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                unsafe { ::unsigned::avx2::is_sorted_gt_u32(self.as_slice()) }
+            }
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { ::unsigned::avx2::is_sorted_gt_u32(self.as_slice()) }
+            } else if is_x86_feature_detected!("sse4.1") {
+                unsafe { ::unsigned::sse41::is_sorted_gt_u32(self.as_slice()) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
 /// Specialization for iterator over &[f32] and increasing order.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -670,6 +707,43 @@ impl<'a> IsSortedBy<ord::types::Less> for slice::Iter<'a, u16> {
     }
 }
 
+/// Specialization for iterator over &[u16] and increasing order.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx2")
+    )
+)]
+impl<'a> IsSortedBy<ord::types::Greater> for slice::Iter<'a, u16> {
+    #[inline]
+    fn is_sorted_by(&mut self, compare: ord::types::Greater) -> bool {
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                unsafe { ::unsigned::sse41::is_sorted_gt_u16(self.as_slice()) }
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                unsafe { ::unsigned::avx2::is_sorted_gt_u16(self.as_slice()) }
+            }
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { ::unsigned::avx2::is_sorted_gt_u16(self.as_slice()) }
+            } else if is_x86_feature_detected!("sse4.1") {
+                unsafe { ::unsigned::sse41::is_sorted_gt_u16(self.as_slice()) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
 /// Specialization for iterator over &[i8] and increasing order.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -774,6 +848,43 @@ impl<'a> IsSortedBy<ord::types::Less> for slice::Iter<'a, u8> {
                 unsafe { ::unsigned::avx2::is_sorted_lt_u8(self.as_slice()) }
             } else if is_x86_feature_detected!("sse2") {
                 unsafe { ::unsigned::sse41::is_sorted_lt_u8(self.as_slice()) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
+/// Specialization for iterator over &[u8] and increasing order.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx2")
+    )
+)]
+impl<'a> IsSortedBy<ord::types::Greater> for slice::Iter<'a, u8> {
+    #[inline]
+    fn is_sorted_by(&mut self, compare: ord::types::Greater) -> bool {
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                unsafe { ::unsigned::sse41::is_sorted_gt_u8(self.as_slice()) }
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                unsafe { ::unsigned::avx2::is_sorted_gt_u8(self.as_slice()) }
+            }
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { ::unsigned::avx2::is_sorted_gt_u8(self.as_slice()) }
+            } else if is_x86_feature_detected!("sse2") {
+                unsafe { ::unsigned::sse41::is_sorted_gt_u8(self.as_slice()) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
             }

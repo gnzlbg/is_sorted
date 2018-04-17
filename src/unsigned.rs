@@ -120,6 +120,42 @@ pub mod sse41 {
         is_sorted_lt_until_alignment_boundary,
         is_sorted_lt_tail
     );
+    // `_mm_cmpgt_epi32` requires `SSE2`
+    // `_mm_max_epu32` requires `SSE4.1`
+    unsigned_128!(
+        is_sorted_gt_u32,
+        "sse4.1",
+        u32,
+        4,
+        _mm_cmpeq_epi32,
+        _mm_max_epu32,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+    // `_mm_cmpgt_epi16` requires `SSE2`
+    // `_mm_max_epu16` requires `SSE4.1`
+    unsigned_128!(
+        is_sorted_gt_u16,
+        "sse4.1",
+        u16,
+        8,
+        _mm_cmpeq_epi16,
+        _mm_max_epu16,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+    // `_mm_cmpgt_epi8` requires `SSE2`
+    // `_mm_max_epu8` requires `SSE2`
+    unsigned_128!(
+        is_sorted_gt_u8,
+        "sse4.1",
+        u8,
+        16,
+        _mm_cmpeq_epi8,
+        _mm_max_epu8,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
 }
 
 /// 256-bit wide algorithm for slices of unsigned integers
@@ -237,5 +273,42 @@ pub mod avx2 {
         _mm256_min_epu8,
         is_sorted_lt_until_alignment_boundary,
         is_sorted_lt_tail
+    );
+
+    // `_mm256_cmpeq_epi32` requires `AVX2`
+    // `_mm256_max_epu32` requires `AVX2`
+    unsigned_256!(
+        is_sorted_gt_u32,
+        "avx2",
+        u32,
+        8,
+        _mm256_cmpeq_epi32,
+        _mm256_max_epu32,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+    // `_mm256_cmpeq_epi16` requires `AVX2`
+    // `_mm256_max_epu16` requires `AVX2`
+    unsigned_256!(
+        is_sorted_gt_u16,
+        "avx2",
+        u16,
+        16,
+        _mm256_cmpeq_epi16,
+        _mm256_max_epu16,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+    // `_mm256_cmpeq_epi8` requires `AVX2`
+    // `_mm256_max_epu8` requires `AVX2`
+    unsigned_256!(
+        is_sorted_gt_u8,
+        "avx2",
+        u8,
+        32,
+        _mm256_cmpeq_epi8,
+        _mm256_max_epu8,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
     );
 }
