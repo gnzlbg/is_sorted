@@ -278,6 +278,7 @@ where
 /// $boundary (16 for 16-byte boundary). Returns a (i,n,s) tuple where `i` is
 /// the index of the next element in the slice aligned to a 16-byte boundary,
 /// `n` the slice length, and `s` the slice.
+#[cfg(feature = "unstable")]
 macro_rules! is_sorted_handle_unaligned_head_int {
     ($x:ident, $ty:ident, $boundary:expr) => {{
         let s = $x.as_slice();
@@ -316,6 +317,7 @@ macro_rules! is_sorted_handle_unaligned_head_int {
 
 /// Handles the tail of the `slice` `s` of length `n` starting at index `i`
 /// using a scalar loop:
+#[cfg(feature = "unstable")]
 macro_rules! is_sorted_handle_tail {
     ($s:ident, $n:ident, $i:ident) => {{
         // Handle the tail of the slice using the scalar algoirithm:
@@ -439,9 +441,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
             }
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. Use the SSE4.1 algorithm from HeroicKatora
-            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
-            // to handle the body of the slice.
+            // boundary. 
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 8; // #lanes in each vector
@@ -525,7 +525,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
     fn is_sorted_by(&mut self, compare: ord::Less) -> bool {
         #[inline]
         #[target_feature(enable = "sse4.1")]
-        unsafe fn sse41_i32_impl<'a>(x: &mut slice::Iter<'a, u32>) -> bool {
+        unsafe fn sse41_u32_impl<'a>(x: &mut slice::Iter<'a, u32>) -> bool {
             #[cfg(target_arch = "x86")]
             use arch::x86::*;
             #[cfg(target_arch = "x86_64")]
@@ -598,15 +598,89 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u32> {
             is_sorted_handle_tail!(s, n, i)
         }
 
+        #[inline]
+        #[target_feature(enable = "avx2")]
+        unsafe fn avx2_u32_impl<'a>(x: &mut slice::Iter<'a, u32>) -> bool {
+            #[cfg(target_arch = "x86")]
+            use arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use arch::x86_64::*;
+
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, u32, 32);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
+
+            // `i` points to the first element of the slice at a 16-byte
+            // boundary. 
+            const LVECS: isize = 4; // #of vectors in the loop
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 8; // #lanes in each vector
+            const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
+            if (n - i) >= MIN_LEN {
+                while i < n - STRIDE {
+                    let current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a7]
+                    let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a8,..,a16]
+                    let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a16,..,a23]
+                    let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a24,..,a31]
+
+                    let compare0 = _mm256_loadu_si256(ap(i + 0 * NLANES + 1)); // [a1,..,a8]
+                    let compare1 = _mm256_loadu_si256(ap(i + 1 * NLANES + 1)); // [a9,..,a16]
+                    let compare2 = _mm256_loadu_si256(ap(i + 2 * NLANES + 1)); // [a17,..,a23]
+                    let compare3 = _mm256_loadu_si256(ap(i + 3 * NLANES + 1)); // [a25,..,a32]
+
+                    // a <= b <=> a == minu(a,b):
+                    // [a0 <= a1,..,a7 <= a8]
+                    let mask0 = _mm256_cmpeq_epi32(
+                        current,
+                        _mm256_min_epu32(current, compare0),
+                    );
+                    // [a8 <= a9,..,a15 <= a16]
+                    let mask1 =
+                        _mm256_cmpeq_epi32(next0, _mm256_min_epu32(next0, compare1));
+                    // [a16 <= a17,.., a23 <= a24]
+                    let mask2 =
+                        _mm256_cmpeq_epi32(next1, _mm256_min_epu32(next1, compare2));
+                    // [a24 <= a25,..,a31 <= a32]
+                    let mask3 =
+                        _mm256_cmpeq_epi32(next2, _mm256_min_epu32(next2, compare3));
+
+                    // mask = mask0 && mask1 && mask2 && mask3
+                    let mask = _mm256_and_si256(
+                        _mm256_and_si256(mask0, mask1),
+                        _mm256_and_si256(mask2, mask3),
+                    );
+
+                    // If the resulting mask has all bits set it means that all
+                    // the <= comparisons were succesfull:
+                    if _mm256_testc_si256(mask, _mm256_set1_epi64x(-1)) == 0 {
+                        return false;
+                    }
+                    i += STRIDE;
+                }
+            }
+
+            is_sorted_handle_tail!(s, n, i)
+        }
+
         #[cfg(not(feature = "use_std"))]
         unsafe {
-            sse41_i32_impl(self)
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                sse41_u32_impl(self)
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                avx2_u32_impl(self)
+            }
         }
 
         #[cfg(feature = "use_std")]
         {
-            if is_x86_feature_detected!("sse4.1") {
-                unsafe { sse41_i32_impl(self) }
+            if is_x86_feature_detected!("avx2") {
+                unsafe { avx2_u32_impl(self) }
+            } else if is_x86_feature_detected!("sse4.1") {
+                unsafe { sse41_u32_impl(self) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
             }
@@ -732,14 +806,115 @@ impl<'a> IsSortedBy<ord::PartialLessUnwrapped> for slice::Iter<'a, f32> {
             is_sorted_handle_tail!(s, n, i)
         }
 
+        #[inline]
+        #[target_feature(enable = "avx2")]
+        unsafe fn avx2_f32_impl<'a>(x: &mut slice::Iter<'a, f32>) -> bool {
+            #[cfg(target_arch = "x86")]
+            use arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use arch::x86_64::*;
+
+            let s = x.as_slice();
+            let n = s.len() as isize;
+            // If the slice has zero or one elements, it is sorted:
+            if n < 2 {
+                return true;
+            }
+
+            let ap = |i| s.as_ptr().offset(i);
+
+            let mut i: isize = 0;
+
+            // The first element of the slice might not be aligned to a
+            // 32-byte boundary. Handle the elements until the
+            // first 32-byte boundary using the scalar algorithm
+            {
+                let mut a =
+                    s.as_ptr().align_offset(32) / mem::size_of::<f32>();
+                while a > 0 && i < n - 1 {
+                    if s.get_unchecked(i as usize)
+                        > s.get_unchecked(i as usize + 1)
+                    {
+                        return false;
+                    }
+                    i += 1;
+                    a -= 1;
+                }
+                debug_assert!(i == n - 1 || ap(i).align_offset(32) == 0);
+            }
+
+            // `i` points to the first element of the slice at a 32-byte
+            // boundary.
+            const LVECS: isize = 4; // #of vectors in the loop
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 8; // #lanes in each vector
+            const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
+            const EWIDTH: i32 = 4; // width of the vector elements
+            if (n - i) >= MIN_LEN {
+                // 5 vectors of 4 elements = 20
+                while i < n - STRIDE {
+                    let current = _mm256_load_ps(ap(i + 0 * NLANES)); // [a0,..,a3]
+                    // == 16 | the last vector of current is the first of next
+                    let next0 = _mm256_load_ps(ap(i + 1 * NLANES)); // [a4,..,a7]
+                    let next1 = _mm256_load_ps(ap(i + 2 * NLANES)); // [a8,..,a11]
+                    let next2 = _mm256_load_ps(ap(i + 3 * NLANES)); // [a12,..,a15]
+
+                    let compare0 = _mm256_loadu_ps(ap(i + 0 * NLANES + 1)); // [a1,..,a8]
+                    let compare1 = _mm256_loadu_ps(ap(i + 1 * NLANES + 1)); // [a9,..,a16]
+                    let compare2 = _mm256_loadu_ps(ap(i + 2 * NLANES + 1)); // [a17,..,a23]
+                    let compare3 = _mm256_loadu_ps(ap(i + 3 * NLANES + 1)); // [a25,..,a32]
+
+                    // [a0 <= a1,..,a3 <= a4]
+                    let mask0 =
+                        _mm256_cmp_ps(current, mem::transmute(compare0), _CMP_LE_OQ);
+                    // [a4 <= a5,..,a7 <= a8]
+                    let mask1 = _mm256_cmp_ps(next0, mem::transmute(compare1), _CMP_LE_OQ);
+                    // [a8 <= a9,..,a11 <= a12]
+                    let mask2 = _mm256_cmp_ps(next1, mem::transmute(compare2), _CMP_LE_OQ);
+                    // [a12 <= a13,..,a15 <= a16]
+                    let mask3 = _mm256_cmp_ps(next2, mem::transmute(compare3), _CMP_LE_OQ);
+
+                    // mask = mask0 | mask1 | mask2 | mask3
+                    let mask = _mm256_and_ps(
+                        _mm256_and_ps(mask0, mask1),
+                        _mm256_and_ps(mask2, mask3),
+                    );
+
+                    // mask & mask == 0: if some gt comparison was true, the
+                    // mask will have some bits set. The result of bitwise & of
+                    // the mask with itself is only zero if all of the bits of
+                    // the mask are zero. Therefore, if some comparison
+                    // succeeded, there will be some non-zero bit, and all
+                    // zeros would return false (aka 0).
+                    if _mm256_testc_ps(mask, _mm256_set1_ps(mem::transmute(-1_i32))) == 0 {
+                        return false;
+                    }
+
+                    i += STRIDE;
+                }
+            }
+
+            is_sorted_handle_tail!(s, n, i)
+        }
+
         #[cfg(not(feature = "use_std"))]
         unsafe {
-            sse41_f32_impl(self)
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                sse41_f32_impl(self)
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                avx2_f32_impl(self)
+            }
         }
 
         #[cfg(feature = "use_std")]
         {
-            if is_x86_feature_detected!("sse4.1") {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { avx2_f32_impl(self) }
+            } else if is_x86_feature_detected!("sse4.1") {
                 unsafe { sse41_f32_impl(self) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
@@ -838,9 +1013,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. Use the SSE4.1 algorithm from HeroicKatora
-            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
-            // to handle the body of the slice.
+            // boundary. 
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 16; // #lanes in each vector
@@ -993,15 +1166,88 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u16> {
 
             is_sorted_handle_tail!(s, n, i)
         }
+        #[inline]
+        #[target_feature(enable = "avx2")]
+        unsafe fn avx2_u16_impl<'a>(x: &mut slice::Iter<'a, u16>) -> bool {
+            #[cfg(target_arch = "x86")]
+            use arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use arch::x86_64::*;
+
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, u16, 32);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
+
+            // `i` points to the first element of the slice at a 16-byte
+            // boundary. 
+            const LVECS: isize = 4; // #of vectors in the loop
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 16; // #lanes in each vector
+            const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
+            if (n - i) >= MIN_LEN {
+                while i < n - STRIDE {
+                    let current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a7]
+                    let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a8,..,a16]
+                    let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a16,..,a23]
+                    let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a24,..,a31]
+
+                    let compare0 = _mm256_loadu_si256(ap(i + 0 * NLANES + 1)); // [a1,..,a8]
+                    let compare1 = _mm256_loadu_si256(ap(i + 1 * NLANES + 1)); // [a9,..,a16]
+                    let compare2 = _mm256_loadu_si256(ap(i + 2 * NLANES + 1)); // [a17,..,a23]
+                    let compare3 = _mm256_loadu_si256(ap(i + 3 * NLANES + 1)); // [a25,..,a32]
+
+                    // a <= b <=> a == minu(a,b):
+                    // [a0 <= a1,..,a7 <= a8]
+                    let mask0 = _mm256_cmpeq_epi16(
+                        current,
+                        _mm256_min_epu16(current, compare0),
+                    );
+                    // [a8 <= a9,..,a15 <= a16]
+                    let mask1 =
+                        _mm256_cmpeq_epi16(next0, _mm256_min_epu16(next0, compare1));
+                    // [a16 <= a17,.., a23 <= a24]
+                    let mask2 =
+                        _mm256_cmpeq_epi16(next1, _mm256_min_epu16(next1, compare2));
+                    // [a24 <= a25,..,a31 <= a32]
+                    let mask3 =
+                        _mm256_cmpeq_epi16(next2, _mm256_min_epu16(next2, compare3));
+
+                    // mask = mask0 && mask1 && mask2 && mask3
+                    let mask = _mm256_and_si256(
+                        _mm256_and_si256(mask0, mask1),
+                        _mm256_and_si256(mask2, mask3),
+                    );
+
+                    // If the resulting mask has all bits set it means that all
+                    // the <= comparisons were succesfull:
+                    if _mm256_testc_si256(mask, _mm256_set1_epi64x(-1)) == 0 {
+                        return false;
+                    }
+                    i += STRIDE;
+                }
+            }
+
+            is_sorted_handle_tail!(s, n, i)
+        }
 
         #[cfg(not(feature = "use_std"))]
         unsafe {
-            sse41_u16_impl(self)
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                sse41_u16_impl(self)
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                avx2_u16_impl(self)
+            }
         }
 
         #[cfg(feature = "use_std")]
         {
-            if is_x86_feature_detected!("sse4.1") {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { avx2_u16_impl(self) }
+            } else if is_x86_feature_detected!("sse4.1") {
                 unsafe { sse41_u16_impl(self) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
@@ -1100,9 +1346,7 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
 
             // `i` points to the first element of the slice at a 16-byte
-            // boundary. Use the SSE4.1 algorithm from HeroicKatora
-            // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
-            // to handle the body of the slice.
+            // boundary. 
             const LVECS: isize = 4; // #of vectors in the loop
             const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
             const NLANES: isize = 32; // #lanes in each vector
@@ -1256,14 +1500,88 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, u8> {
             is_sorted_handle_tail!(s, n, i)
         }
 
+        #[inline]
+        #[target_feature(enable = "avx2")]
+        unsafe fn avx2_u8_impl<'a>(x: &mut slice::Iter<'a, u8>) -> bool {
+            #[cfg(target_arch = "x86")]
+            use arch::x86::*;
+            #[cfg(target_arch = "x86_64")]
+            use arch::x86_64::*;
+
+            let (mut i, n, s) =
+                is_sorted_handle_unaligned_head_int!(x, u8, 32);
+            let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
+
+            // `i` points to the first element of the slice at a 16-byte
+            // boundary. 
+            const LVECS: isize = 4; // #of vectors in the loop
+            const NVECS: isize = 1 + LVECS; // #vectors in the loop + current
+            const NLANES: isize = 32; // #lanes in each vector
+            const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
+            const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
+            if (n - i) >= MIN_LEN {
+                while i < n - STRIDE {
+                    let current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a7]
+                    let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a8,..,a16]
+                    let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a16,..,a23]
+                    let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a24,..,a31]
+
+                    let compare0 = _mm256_loadu_si256(ap(i + 0 * NLANES + 1)); // [a1,..,a8]
+                    let compare1 = _mm256_loadu_si256(ap(i + 1 * NLANES + 1)); // [a9,..,a16]
+                    let compare2 = _mm256_loadu_si256(ap(i + 2 * NLANES + 1)); // [a17,..,a23]
+                    let compare3 = _mm256_loadu_si256(ap(i + 3 * NLANES + 1)); // [a25,..,a32]
+
+                    // a <= b <=> a == minu(a,b):
+                    // [a0 <= a1,..,a7 <= a8]
+                    let mask0 = _mm256_cmpeq_epi8(
+                        current,
+                        _mm256_min_epu8(current, compare0),
+                    );
+                    // [a8 <= a9,..,a15 <= a16]
+                    let mask1 =
+                        _mm256_cmpeq_epi8(next0, _mm256_min_epu8(next0, compare1));
+                    // [a16 <= a17,.., a23 <= a24]
+                    let mask2 =
+                        _mm256_cmpeq_epi8(next1, _mm256_min_epu8(next1, compare2));
+                    // [a24 <= a25,..,a31 <= a32]
+                    let mask3 =
+                        _mm256_cmpeq_epi8(next2, _mm256_min_epu8(next2, compare3));
+
+                    // mask = mask0 && mask1 && mask2 && mask3
+                    let mask = _mm256_and_si256(
+                        _mm256_and_si256(mask0, mask1),
+                        _mm256_and_si256(mask2, mask3),
+                    );
+
+                    // If the resulting mask has all bits set it means that all
+                    // the <= comparisons were succesfull:
+                    if _mm256_testc_si256(mask, _mm256_set1_epi64x(-1)) == 0 {
+                        return false;
+                    }
+                    i += STRIDE;
+                }
+            }
+
+            is_sorted_handle_tail!(s, n, i)
+        }
+
         #[cfg(not(feature = "use_std"))]
         unsafe {
-            sse41_u8_impl(self)
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                sse41_u8_impl(self)
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                avx2_u8_impl(self)
+            }
         }
 
         #[cfg(feature = "use_std")]
         {
-            if is_x86_feature_detected!("sse4.1") {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { avx2_u8_impl(self) }
+            } else if is_x86_feature_detected!("sse4.1") {
                 unsafe { sse41_u8_impl(self) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
