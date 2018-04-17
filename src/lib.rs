@@ -434,6 +434,8 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
                 is_sorted_handle_unaligned_head_int!(x, i32, 32);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
 
+            unsafe fn _a(x: __m256i) -> [i32;8] { ::mem::transmute(x) }
+
             // `i` points to the first element of the slice at a 16-byte
             // boundary. Use the SSE4.1 algorithm from HeroicKatora
             // https://www.reddit.com/r/cpp/comments/8bkaj3/is_sorted_using_simd_instructions/dx7jj8u/
@@ -443,20 +445,17 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
             const NLANES: isize = 8; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
             const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
-            const EWIDTH: i32 = 4; // width of the vector elements
             if (n - i) >= MIN_LEN {
-                let mut current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a7]
                 while i < n - STRIDE {
-                    // == 16 | the last vector of current is the first of next
+                    let current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a7]
                     let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a8,..,a16]
                     let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a16,..,a23]
                     let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a24,..,a31]
-                    let next3 = _mm256_load_si256(ap(i + 4 * NLANES)); // [a32,..a39]
 
-                    let compare0 = _mm256_alignr_epi8(next0, current, EWIDTH); // [a1,..,a8]
-                    let compare1 = _mm256_alignr_epi8(next1, next0, EWIDTH); // [a9,..,a16]
-                    let compare2 = _mm256_alignr_epi8(next2, next1, EWIDTH); // [a17,..,a23]
-                    let compare3 = _mm256_alignr_epi8(next3, next2, EWIDTH); // [a25,..,a32]
+                    let compare0 = _mm256_loadu_si256(ap(i + 0 * NLANES + 1)); // [a1,..,a8]
+                    let compare1 = _mm256_loadu_si256(ap(i + 1 * NLANES + 1)); // [a9,..,a16]
+                    let compare2 = _mm256_loadu_si256(ap(i + 2 * NLANES + 1)); // [a17,..,a23]
+                    let compare3 = _mm256_loadu_si256(ap(i + 3 * NLANES + 1)); // [a25,..,a32]
 
                     // [a0 > a1,..,a7 > a8]
                     let mask0 = _mm256_cmpgt_epi32(current, compare0);
@@ -482,8 +481,6 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
                     if _mm256_testz_si256(mask, mask) == 0 {
                         return false;
                     }
-
-                    current = next3;
 
                     i += STRIDE;
                 }
@@ -847,29 +844,26 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
             const NLANES: isize = 16; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
             const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
-            const EWIDTH: i32 = 2; // width of the vector elements
             if (n - i) >= MIN_LEN {
-                let mut current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a15]
                 while i < n - STRIDE {
-                    // == 16 | the last vector of current is the first of next
-                    let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a16,..,a31]
-                    let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a32,..,a47]
-                    let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a48,..,a63]
-                    let next3 = _mm256_load_si256(ap(i + 4 * NLANES)); // [a64,..a79]
+                    let current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a7]
+                    let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a8,..,a16]
+                    let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a16,..,a23]
+                    let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a24,..,a31]
 
-                    let compare0 = _mm256_alignr_epi8(next0, current, EWIDTH); // [a1,..,a16]
-                    let compare1 = _mm256_alignr_epi8(next1, next0, EWIDTH); // [a17,..,a32]
-                    let compare2 = _mm256_alignr_epi8(next2, next1, EWIDTH); // [a33,..,a48]
-                    let compare3 = _mm256_alignr_epi8(next3, next2, EWIDTH); // [a49,..,a64]
+                    let compare0 = _mm256_loadu_si256(ap(i + 0 * NLANES + 1)); // [a1,..,a8]
+                    let compare1 = _mm256_loadu_si256(ap(i + 1 * NLANES + 1)); // [a9,..,a16]
+                    let compare2 = _mm256_loadu_si256(ap(i + 2 * NLANES + 1)); // [a17,..,a23]
+                    let compare3 = _mm256_loadu_si256(ap(i + 3 * NLANES + 1)); // [a25,..,a32]
 
                     // [a0 > a1,..,a15 > a16]
-                    let mask0 = _mm256_cmpgt_epi32(current, compare0);
+                    let mask0 = _mm256_cmpgt_epi16(current, compare0);
                     // [a16 > a17,..,a31 > a32]
-                    let mask1 = _mm256_cmpgt_epi32(next0, compare1);
+                    let mask1 = _mm256_cmpgt_epi16(next0, compare1);
                     // [a32 > a33,..,a47 > a48]
-                    let mask2 = _mm256_cmpgt_epi32(next1, compare2);
+                    let mask2 = _mm256_cmpgt_epi16(next1, compare2);
                     // [a48 > a49,..,a63 > a64]
-                    let mask3 = _mm256_cmpgt_epi32(next2, compare3);
+                    let mask3 = _mm256_cmpgt_epi16(next2, compare3);
 
                     // mask = mask0 | mask1 | mask2 | mask3
                     let mask = _mm256_or_si256(
@@ -886,8 +880,6 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i16> {
                     if _mm256_testz_si256(mask, mask) == 0 {
                         return false;
                     }
-
-                    current = next3;
 
                     i += STRIDE;
                 }
@@ -1114,29 +1106,26 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
             const NLANES: isize = 32; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
             const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
-            const EWIDTH: i32 = 1; // width of the vector elements
             if (n - i) >= MIN_LEN {
-                let mut current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a31]
                 while i < n - STRIDE {
-                    // == 16 | the last vector of current is the first of next
-                    let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a32,..,a63]
-                    let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a64,..,a95]
-                    let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a96,..,a127]
-                    let next3 = _mm256_load_si256(ap(i + 4 * NLANES)); // [a128,..a159]
+                    let current = _mm256_load_si256(ap(i + 0 * NLANES)); // [a0,..,a7]
+                    let next0 = _mm256_load_si256(ap(i + 1 * NLANES)); // [a8,..,a16]
+                    let next1 = _mm256_load_si256(ap(i + 2 * NLANES)); // [a16,..,a23]
+                    let next2 = _mm256_load_si256(ap(i + 3 * NLANES)); // [a24,..,a31]
 
-                    let compare0 = _mm256_alignr_epi8(next0, current, EWIDTH); // [a1,..,a32]
-                    let compare1 = _mm256_alignr_epi8(next1, next0, EWIDTH); // [a33,..,a64]
-                    let compare2 = _mm256_alignr_epi8(next2, next1, EWIDTH); // [a65,..,a96]
-                    let compare3 = _mm256_alignr_epi8(next3, next2, EWIDTH); // [a97,..,a128]
+                    let compare0 = _mm256_loadu_si256(ap(i + 0 * NLANES + 1)); // [a1,..,a8]
+                    let compare1 = _mm256_loadu_si256(ap(i + 1 * NLANES + 1)); // [a9,..,a16]
+                    let compare2 = _mm256_loadu_si256(ap(i + 2 * NLANES + 1)); // [a17,..,a23]
+                    let compare3 = _mm256_loadu_si256(ap(i + 3 * NLANES + 1)); // [a25,..,a32]
 
                     // [a0 > a1,..,a31 > a32]
-                    let mask0 = _mm256_cmpgt_epi32(current, compare0);
+                    let mask0 = _mm256_cmpgt_epi8(current, compare0);
                     // [a32 > a33,..,a63 > a64]
-                    let mask1 = _mm256_cmpgt_epi32(next0, compare1);
+                    let mask1 = _mm256_cmpgt_epi8(next0, compare1);
                     // [a64 > a65,..,a95 > a96]
-                    let mask2 = _mm256_cmpgt_epi32(next1, compare2);
+                    let mask2 = _mm256_cmpgt_epi8(next1, compare2);
                     // [a96 > a97,..,a127 > a128]
-                    let mask3 = _mm256_cmpgt_epi32(next2, compare3);
+                    let mask3 = _mm256_cmpgt_epi8(next2, compare3);
 
                     // mask = mask0 | mask1 | mask2 | mask3
                     let mask = _mm256_or_si256(
@@ -1153,8 +1142,6 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i8> {
                     if _mm256_testz_si256(mask, mask) == 0 {
                         return false;
                     }
-
-                    current = next3;
 
                     i += STRIDE;
                 }
