@@ -14,7 +14,7 @@ macro_rules! test_float {
             #[cfg(feature = "unstable")]
             macro_rules! cmp_lt {
                 () => {
-                    ::PartialLessUnwrapped
+                    ::is_sorted::PartialLessUnwrapped
                 };
             }
 
@@ -28,7 +28,7 @@ macro_rules! test_float {
             #[cfg(feature = "unstable")]
             macro_rules! cmp_gt {
                 () => {
-                    ::PartialGreaterUnwrapped
+                    ::is_sorted::PartialGreaterUnwrapped
                 };
             }
 
@@ -179,7 +179,7 @@ macro_rules! ints {
             #[cfg(feature = "unstable")]
             macro_rules! cmp_lt {
                 () => {
-                    ::Less
+                    ::is_sorted::Less
                 };
             }
 
@@ -193,7 +193,7 @@ macro_rules! ints {
             #[cfg(feature = "unstable")]
             macro_rules! cmp_gt {
                 () => {
-                    ::Greater
+                    ::is_sorted::Greater
                 };
             }
 
