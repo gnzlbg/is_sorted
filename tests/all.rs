@@ -485,3 +485,18 @@ fn x86_failures() {
     ];
     assert!(v.iter().is_sorted());
 }
+
+#[cfg(feature = "unstable")]
+#[test]
+fn more_floats() {
+    let nan = ::std::f32::NAN;
+
+    let v = [
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 2.0, nan, 1.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0,
+        7.0, 7.0,
+    ];
+
+    assert!(!v.iter().is_sorted_by(is_sorted::PartialLessUnwrapped));
+}
