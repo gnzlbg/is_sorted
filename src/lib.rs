@@ -267,6 +267,47 @@ impl<'a> IsSortedBy<ord::types::PartialLessUnwrapped>
     }
 }
 
+/// Specialization for iterator over &[f64] and decreasing order.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx")
+    )
+)]
+impl<'a> IsSortedBy<ord::types::PartialGreaterUnwrapped>
+    for slice::Iter<'a, f64>
+{
+    #[inline]
+    fn is_sorted_by(
+        &mut self, compare: ord::types::PartialGreaterUnwrapped,
+    ) -> bool {
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            #[cfg(not(target_feature = "avx"))]
+            {
+                unsafe { ::floats::sse41::is_sorted_gt_f64(self.as_slice()) }
+            }
+            #[cfg(target_feature = "avx")]
+            {
+                unsafe { ::floats::avx::is_sorted_gt_f64(self.as_slice()) }
+            }
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("avx") {
+                unsafe { ::floats::avx::is_sorted_gt_f64(self.as_slice()) }
+            } else if is_x86_feature_detected!("sse4.1") {
+                unsafe { ::floats::sse41::is_sorted_gt_f64(self.as_slice()) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
 /// Specialization for iterator over &[i32] and increasing order.
 ///
 /// If `std` is available, always include this and perform run-time feature
@@ -382,6 +423,47 @@ impl<'a> IsSortedBy<ord::types::PartialLessUnwrapped>
                 unsafe { ::floats::avx::is_sorted_lt_f32(self.as_slice()) }
             } else if is_x86_feature_detected!("sse4.1") {
                 unsafe { ::floats::sse41::is_sorted_lt_f32(self.as_slice()) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
+/// Specialization for iterator over &[f32] and decreasing order.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx")
+    )
+)]
+impl<'a> IsSortedBy<ord::types::PartialGreaterUnwrapped>
+    for slice::Iter<'a, f32>
+{
+    #[inline]
+    fn is_sorted_by(
+        &mut self, compare: ord::types::PartialGreaterUnwrapped,
+    ) -> bool {
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            #[cfg(not(target_feature = "avx"))]
+            {
+                unsafe { ::floats::sse41::is_sorted_gt_f32(self.as_slice()) }
+            }
+            #[cfg(target_feature = "avx")]
+            {
+                unsafe { ::floats::avx::is_sorted_gt_f32(self.as_slice()) }
+            }
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("avx") {
+                unsafe { ::floats::avx::is_sorted_gt_f32(self.as_slice()) }
+            } else if is_x86_feature_detected!("sse4.1") {
+                unsafe { ::floats::sse41::is_sorted_gt_f32(self.as_slice()) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
             }

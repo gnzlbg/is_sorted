@@ -14,7 +14,9 @@ macro_rules! floats_128 {
         $nlanes:expr,
         $load:ident,
         $cmple:ident,
-        $and:ident
+        $and:ident,
+        $head:ident,
+        $tail:ident
     ) => {
         #[inline]
         #[target_feature(enable = $cpuid)]
@@ -26,8 +28,7 @@ macro_rules! floats_128 {
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 16;
-            let mut i =
-                is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i = $head!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an
             // ALIGNMENT boundary
             let n = s.len() as isize;
@@ -100,7 +101,7 @@ macro_rules! floats_128 {
                 }
             }
 
-            is_sorted_lt_tail!(s, n, i)
+            $tail!(s, n, i)
         }
     };
 }
@@ -116,7 +117,9 @@ pub mod sse41 {
         4,
         _mm_load_ps,
         _mm_cmple_ps,
-        _mm_and_ps
+        _mm_and_ps,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm_load_pd` requires `SSE2`
     // `_mm_cmple_pd` requires `SSE2`
@@ -128,14 +131,45 @@ pub mod sse41 {
         2,
         _mm_load_pd,
         _mm_cmple_pd,
-        _mm_and_pd
+        _mm_and_pd,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
+    );
+    // `_mm_load_ps` requires `SSE`
+    // `_mm_cmple_ps` requires `SSE`
+    // `_mm_and_ps` requires `SSE`
+    floats_128!(
+        is_sorted_gt_f32,
+        "sse4.1",
+        f32,
+        4,
+        _mm_load_ps,
+        _mm_cmpge_ps,
+        _mm_and_ps,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+    // `_mm_load_pd` requires `SSE2`
+    // `_mm_cmple_pd` requires `SSE2`
+    // `_mm_and_pd` requires `SSE2`
+    floats_128!(
+        is_sorted_gt_f64,
+        "sse4.1",
+        f64,
+        2,
+        _mm_load_pd,
+        _mm_cmpge_pd,
+        _mm_and_pd,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
     );
 }
 
 /// 256-bit wide algorithm for slices of floating-point numbers
 macro_rules! floats_256 {
     ($name:ident, $cpuid:tt, $id:ident, $nlanes:expr, $load:ident, $loadu:ident,
-     $cmp:ident, $and:ident, $testc:ident, $set1:ident, $ones:expr) => {
+     $cmp:ident, $cmp_t:ident, $and:ident, $testc:ident, $set1:ident, $ones:expr,
+     $head:ident, $tail:ident) => {
         #[inline]
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> bool {
@@ -146,7 +180,7 @@ macro_rules! floats_256 {
 
             // The alignment requirements for 256-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 32;
-            let mut i = is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i = $head!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
             let n = s.len() as isize;
             let ap = |o| (s.as_ptr().offset(o)) as *const $id;
@@ -180,25 +214,25 @@ macro_rules! floats_256 {
                     let mask0 = $cmp(
                         current,
                         transmute(compare0),
-                        _CMP_LE_OQ,
+                        $cmp_t,
                     );
                     // [a4 <= a5,..,a7 <= a8]
                     let mask1 = $cmp(
                         next0,
                         transmute(compare1),
-                        _CMP_LE_OQ,
+                        $cmp_t,
                     );
                     // [a8 <= a9,..,a11 <= a12]
                     let mask2 = $cmp(
                         next1,
                         transmute(compare2),
-                        _CMP_LE_OQ,
+                        $cmp_t,
                     );
                     // [a12 <= a13,..,a15 <= a16]
                     let mask3 = $cmp(
                         next2,
                         transmute(compare3),
-                        _CMP_LE_OQ,
+                        $cmp_t,
                     );
 
                     // mask = mask0 | mask1 | mask2 | mask3
@@ -221,7 +255,7 @@ macro_rules! floats_256 {
                 }
             }
 
-            is_sorted_lt_tail!(s, n, i)
+            $tail!(s, n, i)
         }
     }
 }
@@ -241,10 +275,13 @@ pub mod avx {
         _mm256_load_ps,
         _mm256_loadu_ps,
         _mm256_cmp_ps,
+        _CMP_LE_OQ,
         _mm256_and_ps,
         _mm256_testc_ps,
         _mm256_set1_ps,
-        -1_i32
+        -1_i32,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm256_load_pd` requires `AVX`
     // `_mm256_loadu_pd` requires `AVX`
@@ -260,9 +297,57 @@ pub mod avx {
         _mm256_load_pd,
         _mm256_loadu_pd,
         _mm256_cmp_pd,
+        _CMP_LE_OQ,
         _mm256_and_pd,
         _mm256_testc_pd,
         _mm256_set1_pd,
-        -1_i64
+        -1_i64,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
+    // `_mm256_load_ps` requires `AVX`
+    // `_mm256_loadu_ps` requires `AVX`
+    // `_mm256_cmp_ps` requires `AVX`
+    // `_mm256_and_ps` requires `AVX`
+    // `_mm256_testc_ps` requires `AVX`
+    // `_mm256_set1_ps` requires `AVX`
+    floats_256!(
+        is_sorted_gt_f32,
+        "avx",
+        f32,
+        8,
+        _mm256_load_ps,
+        _mm256_loadu_ps,
+        _mm256_cmp_ps,
+        _CMP_GE_OQ,
+        _mm256_and_ps,
+        _mm256_testc_ps,
+        _mm256_set1_ps,
+        -1_i32,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+    // `_mm256_load_pd` requires `AVX`
+    // `_mm256_loadu_pd` requires `AVX`
+    // `_mm256_cmp_pd` requires `AVX`
+    // `_mm256_and_pd` requires `AVX`
+    // `_mm256_testc_pd` requires `AVX`
+    // `_mm256_set1_pd` requires `AVX`
+    floats_256!(
+        is_sorted_gt_f64,
+        "avx",
+        f64,
+        4,
+        _mm256_load_pd,
+        _mm256_loadu_pd,
+        _mm256_cmp_pd,
+        _CMP_GE_OQ,
+        _mm256_and_pd,
+        _mm256_testc_pd,
+        _mm256_set1_pd,
+        -1_i64,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+
 }
