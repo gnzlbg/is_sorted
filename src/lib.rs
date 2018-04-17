@@ -434,7 +434,9 @@ impl<'a> IsSortedBy<ord::Less> for slice::Iter<'a, i32> {
                 is_sorted_handle_unaligned_head_int!(x, i32, 32);
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
 
-            unsafe fn _a(x: __m256i) -> [i32;8] { ::mem::transmute(x) }
+            unsafe fn _a(x: __m256i) -> [i32; 8] {
+                ::mem::transmute(x)
+            }
 
             // `i` points to the first element of the slice at a 16-byte
             // boundary. Use the SSE4.1 algorithm from HeroicKatora
