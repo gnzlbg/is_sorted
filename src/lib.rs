@@ -36,6 +36,7 @@ mod macros;
 #[cfg(feature = "unstable")]
 mod signed;
 
+
 #[cfg(feature = "unstable")]
 mod unsigned;
 
@@ -163,6 +164,8 @@ where
 }
 
 /// Scalar `is_sorted_by` implementation.
+///
+/// It just forwards to `Iterator::all`.
 #[inline]
 fn is_sorted_by_scalar_impl<I, F>(iter: &mut I, mut compare: F) -> bool
 where
@@ -184,12 +187,14 @@ where
 
 /// Specialization for iterator over &[i64] and increasing order.
 ///
-/// If `std` is available, always include this and perform run-time feature
-/// detection inside it to select the `SSE4.1` algorithm when the CPU supports
-/// it.
+/// On nightly:
 ///
-/// If `std` is not available, include this specialization only when the
-/// target supports `SSE4.1` at compile-time.
+/// * if `std` is available, always include this and select the best
+/// implementation using run-time feature detection.
+///
+/// * otherwise, include this specialization only when we can statically
+/// determine that the target supports one of the implementations available
+/// (using compile-time feature detection).
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[cfg(
@@ -227,13 +232,6 @@ impl<'a> IsSortedBy<ord::types::Less> for slice::Iter<'a, i64> {
 }
 
 /// Specialization for iterator over &[i64] and increasing order.
-///
-/// If `std` is available, always include this and perform run-time feature
-/// detection inside it to select the `SSE4.1` algorithm when the CPU supports
-/// it.
-///
-/// If `std` is not available, include this specialization only when the
-/// target supports `SSE4.1` at compile-time.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[cfg(
@@ -353,13 +351,6 @@ impl<'a> IsSortedBy<ord::types::PartialGreaterUnwrapped>
 }
 
 /// Specialization for iterator over &[i32] and increasing order.
-///
-/// If `std` is available, always include this and perform run-time feature
-/// detection inside it to select the `SSE4.1` algorithm when the CPU supports
-/// it.
-///
-/// If `std` is not available, include this specialization only when the
-/// target supports `SSE4.1` at compile-time.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[cfg(
@@ -397,13 +388,6 @@ impl<'a> IsSortedBy<ord::types::Less> for slice::Iter<'a, i32> {
 }
 
 /// Specialization for iterator over &[i32] and decreasing order.
-///
-/// If `std` is available, always include this and perform run-time feature
-/// detection inside it to select the `SSE4.1` algorithm when the CPU supports
-/// it.
-///
-/// If `std` is not available, include this specialization only when the
-/// target supports `SSE4.1` at compile-time.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[cfg(
