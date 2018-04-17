@@ -43,6 +43,9 @@ from_usize_prim!(u16);
 from_usize_prim!(i32);
 from_usize_prim!(u32);
 from_usize_prim_f!(f32);
+from_usize_prim!(i64);
+from_usize_prim!(u64);
+from_usize_prim_f!(f64);
 
 macro_rules! wrapper {
     ($id:ident, $inner:ident) => {
@@ -74,6 +77,9 @@ wrapper!(wi16, i16);
 wrapper!(wu32, u32);
 wrapper!(wi32, i32);
 wrapper_f!(wf32, f32);
+wrapper!(wu64, u64);
+wrapper!(wi64, i64);
+wrapper_f!(wf64, f64);
 
 macro_rules! sorted {
     ($name:ident, $ty:ident, $size:expr) => {
@@ -129,6 +135,7 @@ macro_rules! sorted_f {
 const N8: usize = 4_000_000;
 const N16: usize = 2_000_000;
 const N32: usize = 2_000_000;
+const N64: usize = 2_000_000;
 
 sorted!(run_8i_baseline, wi8, N8);
 sorted!(run_8u_baseline, wu8, N8);
@@ -146,3 +153,10 @@ sorted_f!(run_32f_baseline, wf32, N32);
 sorted!(run_32i_is_sorted, i32, N32);
 sorted!(run_32u_is_sorted, u32, N32);
 sorted_f!(run_32f_is_sorted, f32, N32);
+
+sorted!(run_64i_baseline, wi64, N64);
+sorted!(run_64u_baseline, wu64, N64);
+sorted_f!(run_64f_baseline, wf64, N64);
+sorted!(run_64i_is_sorted, i64, N64);
+sorted!(run_64u_is_sorted, u64, N64);
+sorted_f!(run_64f_is_sorted, f64, N64);

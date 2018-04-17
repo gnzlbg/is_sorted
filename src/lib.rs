@@ -850,7 +850,6 @@ impl<'a> IsSortedBy<ord::PartialLessUnwrapped> for slice::Iter<'a, f32> {
             const NLANES: isize = 8; // #lanes in each vector
             const STRIDE: isize = NLANES * LVECS; // #vectors in the loop * NLANES
             const MIN_LEN: isize = NLANES * NVECS; // minimum #elements required for vectorization
-            const EWIDTH: i32 = 4; // width of the vector elements
             if (n - i) >= MIN_LEN {
                 // 5 vectors of 4 elements = 20
                 while i < n - STRIDE {
@@ -1810,6 +1809,8 @@ mod tests {
     small!(small_u16, u16);
     small!(small_u32, u32);
     small!(small_i32, i32);
+    small!(small_u64, u64);
+    small!(small_i64, i64);
 
     macro_rules! large {
         ($name:ident, $id:ident) => {
@@ -1877,6 +1878,8 @@ mod tests {
     large!(u16_large, u16);
     large!(u32_large, u32);
     large!(i32_large, i32);
+    large!(u64_large, u64);
+    large!(i64_large, i64);
 
     #[test]
     fn x86_failures() {
