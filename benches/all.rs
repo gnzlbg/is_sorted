@@ -95,7 +95,7 @@ macro_rules! sorted_lt {
             b.iter(|| {
                 let s: &[$ty] = v.as_slice();
                 black_box(s.as_ptr());
-                black_box(s.iter().is_sorted());
+                assert!(black_box(s.iter().is_sorted()));
             });
         }
     };
@@ -118,14 +118,16 @@ macro_rules! sorted_lt_f {
                 #[cfg(feature = "unstable")]
                 {
                     use is_sorted::PartialLessUnwrapped;
-                    black_box(s.iter().is_sorted_by(PartialLessUnwrapped));
+                    assert!(black_box(
+                        s.iter().is_sorted_by(PartialLessUnwrapped)
+                    ));
                 }
                 #[cfg(not(feature = "unstable"))]
                 {
-                    black_box(
+                    assert!(black_box(
                         s.iter()
                             .is_sorted_by(|a, b| a.partial_cmp(b).unwrap()),
-                    );
+                    ));
                 }
             });
         }
@@ -150,13 +152,13 @@ macro_rules! sorted_gt {
                 #[cfg(feature = "unstable")]
                 {
                     use is_sorted::Greater;
-                    black_box(s.iter().is_sorted_by(Greater));
+                    assert!(black_box(s.iter().is_sorted_by(Greater)));
                 }
                 #[cfg(not(feature = "unstable"))]
                 {
-                    black_box(
+                    assert!(black_box(
                         s.iter().is_sorted_by(|a, b| a.cmp(b).reverse()),
-                    );
+                    ));
                 }
             });
         }
@@ -181,13 +183,15 @@ macro_rules! sorted_gt_f {
                 #[cfg(feature = "unstable")]
                 {
                     use is_sorted::PartialGreaterUnwrapped;
-                    black_box(s.iter().is_sorted_by(PartialGreaterUnwrapped));
+                    assert!(black_box(
+                        s.iter().is_sorted_by(PartialGreaterUnwrapped)
+                    ));
                 }
                 #[cfg(not(feature = "unstable"))]
                 {
-                    black_box(s.iter().is_sorted_by(|a, b| {
+                    assert!(black_box(s.iter().is_sorted_by(|a, b| {
                         a.partial_cmp(b).unwrap().reverse()
-                    }));
+                    })));
                 }
             });
         }

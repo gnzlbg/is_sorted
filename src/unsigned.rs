@@ -8,7 +8,8 @@
 /// * `_mm_and_si128` requires `SSE2`
 /// * `_mm_test_all_ones` requires `SSE4.1`
 macro_rules! unsigned_128 {
-    ($name:ident, $cpuid:tt, $id:ident, $nlanes:expr, $cmpeq:ident, $minu:ident) => {
+    ($name:ident, $cpuid:tt, $id:ident, $nlanes:expr, $cmpeq:ident, $minu:ident,
+     $head:ident, $tail:ident) => {
         #[inline]
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> bool {
@@ -19,7 +20,7 @@ macro_rules! unsigned_128 {
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 16;
-            let mut i = is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i = $head!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
             let n = s.len() as isize;
             let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
@@ -77,7 +78,7 @@ macro_rules! unsigned_128 {
                 }
             }
 
-            is_sorted_lt_tail!(s, n, i)
+            $tail!(s, n, i)
         }
     }
 }
@@ -91,7 +92,9 @@ pub mod sse41 {
         u32,
         4,
         _mm_cmpeq_epi32,
-        _mm_min_epu32
+        _mm_min_epu32,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm_cmpgt_epi16` requires `SSE2`
     // `_mm_min_epu16` requires `SSE4.1`
@@ -101,7 +104,9 @@ pub mod sse41 {
         u16,
         8,
         _mm_cmpeq_epi16,
-        _mm_min_epu16
+        _mm_min_epu16,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm_cmpgt_epi8` requires `SSE2`
     // `_mm_min_epu8` requires `SSE2`
@@ -111,7 +116,9 @@ pub mod sse41 {
         u8,
         16,
         _mm_cmpeq_epi8,
-        _mm_min_epu8
+        _mm_min_epu8,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
 }
 
@@ -124,7 +131,8 @@ pub mod sse41 {
 /// * `_mm256_testc_si256` requires `AVX`
 /// * `_mm256_set1_epi64x` requires `AVX`
 macro_rules! unsigned_256 {
-    ($name:ident, $cpuid:tt, $id:ident, $nlanes:expr, $cmpeq:ident, $minu:ident) => {
+    ($name:ident, $cpuid:tt, $id:ident, $nlanes:expr, $cmpeq:ident, $minu:ident,
+     $head:ident, $tail:ident) => {
         #[inline]
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> bool {
@@ -135,7 +143,7 @@ macro_rules! unsigned_256 {
 
             // The alignment requirements for 256-bit wide vectors is 32 bytes:
             const ALIGNMENT: usize = 32;
-            let mut i = is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i = $head!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
             let n = s.len() as isize;
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
@@ -188,7 +196,7 @@ macro_rules! unsigned_256 {
                 }
             }
 
-            is_sorted_lt_tail!(s, n, i)
+            $tail!(s, n, i)
         }
     }
 }
@@ -202,7 +210,9 @@ pub mod avx2 {
         u32,
         8,
         _mm256_cmpeq_epi32,
-        _mm256_min_epu32
+        _mm256_min_epu32,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm256_cmpeq_epi16` requires `AVX2`
     // `_mm256_min_epu16` requires `AVX2`
@@ -212,7 +222,9 @@ pub mod avx2 {
         u16,
         16,
         _mm256_cmpeq_epi16,
-        _mm256_min_epu16
+        _mm256_min_epu16,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm256_cmpeq_epi8` requires `AVX2`
     // `_mm256_min_epu8` requires `AVX2`
@@ -222,6 +234,8 @@ pub mod avx2 {
         u8,
         32,
         _mm256_cmpeq_epi8,
-        _mm256_min_epu8
+        _mm256_min_epu8,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
 }

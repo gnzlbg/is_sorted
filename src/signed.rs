@@ -12,7 +12,8 @@
 /// * `_mm_or_si128` requires `SSE2`
 /// * `_mm_test_all_zeros` requires `SSE4.1`
 macro_rules! signed_128 {
-    ($name:ident, $cpuid:tt, $id:ident, $nlanes:expr, $cmpgt:ident) => {
+    ($name:ident, $cpuid:tt, $id:ident, $nlanes:expr, $cmpgt:ident,
+     $head:ident, $tail:ident) => {
         #[inline]
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> bool {
@@ -23,7 +24,7 @@ macro_rules! signed_128 {
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes
             const ALIGNMENT: usize = 16;
-            let mut i = is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i = $head!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
             let n = s.len() as isize;
             let ap = |o| (s.as_ptr().offset(o)) as *const __m128i;
@@ -85,7 +86,7 @@ macro_rules! signed_128 {
                 }
             }
 
-            is_sorted_lt_tail!(s, n, i)
+            $tail!(s, n, i)
         }
     }
 }
@@ -97,7 +98,33 @@ pub mod sse42 {
         "sse4.2",
         i64,
         2,
-        _mm_cmpgt_epi64
+        _mm_cmpgt_epi64,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
+    );
+
+    #[cfg(target_arch = "x86")]
+    use arch::x86::*;
+    #[cfg(target_arch = "x86_64")]
+    use arch::x86_64::*;
+
+    #[target_feature(enable = "sse4.2")]
+    unsafe fn _mm_cmplt_epi64(x: __m128i, y: __m128i) -> __m128i {
+        let a = _mm_cmpgt_epi64(x, y); // x < y SSE4.2
+        let b = _mm_cmpeq_epi64(x, y); // x == y SSE4.1
+        let c = _mm_or_si128(a, b); // x <= y <=> x < y || == y  -- SSE2
+        let ones = _mm_set1_epi64x(-1_i64);
+        _mm_andnot_si128(c, ones) // !(c) & 1  -- SSE2
+    }
+    // `_mm_cmplt_epi64` requires `SSE4.2`
+    signed_128!(
+        is_sorted_gt_i64,
+        "sse4.2",
+        i64,
+        2,
+        _mm_cmplt_epi64,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
     );
 }
 
@@ -108,7 +135,9 @@ pub mod sse41 {
         "sse4.1",
         i32,
         4,
-        _mm_cmpgt_epi32
+        _mm_cmpgt_epi32,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm_cmpgt_epi16` requires `SSE2`
     signed_128!(
@@ -116,7 +145,9 @@ pub mod sse41 {
         "sse4.1",
         i16,
         8,
-        _mm_cmpgt_epi16
+        _mm_cmpgt_epi16,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm_cmpgt_epi8` requires `SSE2`
     signed_128!(
@@ -124,7 +155,40 @@ pub mod sse41 {
         "sse4.1",
         i8,
         16,
-        _mm_cmpgt_epi8
+        _mm_cmpgt_epi8,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
+    );
+
+    // `_mm_cmplt_epi32` requires `SSE2`
+    signed_128!(
+        is_sorted_gt_i32,
+        "sse4.1",
+        i32,
+        4,
+        _mm_cmplt_epi32,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+    // `_mm_cmplt_epi16` requires `SSE2`
+    signed_128!(
+        is_sorted_gt_i16,
+        "sse4.1",
+        i16,
+        8,
+        _mm_cmplt_epi16,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+    // `_mm_cmplt_epi8` requires `SSE2`
+    signed_128!(
+        is_sorted_gt_i8,
+        "sse4.1",
+        i8,
+        16,
+        _mm_cmplt_epi8,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
     );
 }
 
@@ -138,7 +202,7 @@ pub mod sse41 {
 /// * `_mm256_testc_si256` requires `AVX`
 /// * `_mm256_set1_epi64x` requires `AVX`
 macro_rules! signed_256 {
-    ($name:ident, $cpuid:tt, $id:ident, $nlanes:expr, $cmpgt:ident) => {
+    ($name:ident, $cpuid:tt, $id:ident, $nlanes:expr, $cmpgt:ident, $head:ident, $tail:ident) => {
         #[inline]
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> bool {
@@ -149,7 +213,7 @@ macro_rules! signed_256 {
 
             // The alignment requirements for 256-bit wide vectors is 32 bytes
             const ALIGNMENT: usize = 32;
-            let mut i = is_sorted_lt_until_alignment_boundary!(s, $id, ALIGNMENT);
+            let mut i = $head!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
             let n = s.len() as isize;
             let ap = |o| (s.as_ptr().offset(o)) as *const __m256i;
@@ -206,7 +270,7 @@ macro_rules! signed_256 {
                 }
             }
 
-            is_sorted_lt_tail!(s, n, i)
+            $tail!(s, n, i)
         }
     }
 }
@@ -218,7 +282,9 @@ pub mod avx2 {
         "avx2",
         i64,
         4,
-        _mm256_cmpgt_epi64
+        _mm256_cmpgt_epi64,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm256_cmpgt_epi32` requires `AVX2`
     signed_256!(
@@ -226,7 +292,9 @@ pub mod avx2 {
         "avx2",
         i32,
         8,
-        _mm256_cmpgt_epi32
+        _mm256_cmpgt_epi32,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm256_cmpgt_epi16` requires `AVX2`
     signed_256!(
@@ -234,7 +302,9 @@ pub mod avx2 {
         "avx2",
         i16,
         16,
-        _mm256_cmpgt_epi16
+        _mm256_cmpgt_epi16,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
     // `_mm256_cmpgt_epi8` requires `AVX2`
     signed_256!(
@@ -242,6 +312,94 @@ pub mod avx2 {
         "avx2",
         i8,
         32,
-        _mm256_cmpgt_epi8
+        _mm256_cmpgt_epi8,
+        is_sorted_lt_until_alignment_boundary,
+        is_sorted_lt_tail
     );
+
+    #[cfg(target_arch = "x86")]
+    use arch::x86::*;
+    #[cfg(target_arch = "x86_64")]
+    use arch::x86_64::*;
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn _mm256_cmplt_epi64(x: __m256i, y: __m256i) -> __m256i {
+        let a = _mm256_cmpgt_epi64(x, y);
+        let b = _mm256_cmpeq_epi64(x, y);
+        let x = _mm256_or_si256(a, b); // ge
+                                       // !(x) & 1:
+        _mm256_andnot_si256(x, _mm256_set1_epi64x(-1_i64))
+    }
+
+    // `_mm256_cmplt_epi64` requires `AVX2`
+    signed_256!(
+        is_sorted_gt_i64,
+        "avx2",
+        i64,
+        4,
+        _mm256_cmplt_epi64,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn _mm256_cmplt_epi32(x: __m256i, y: __m256i) -> __m256i {
+        let a = _mm256_cmpgt_epi32(x, y);
+        let b = _mm256_cmpeq_epi32(x, y);
+        let x = _mm256_or_si256(a, b); // ge
+                                       // !(x) & 1:
+        _mm256_andnot_si256(x, _mm256_set1_epi64x(-1_i64))
+    }
+
+    // `_mm256_cmplt_epi32` requires `AVX2`
+    signed_256!(
+        is_sorted_gt_i32,
+        "avx2",
+        i32,
+        8,
+        _mm256_cmplt_epi32,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn _mm256_cmplt_epi16(x: __m256i, y: __m256i) -> __m256i {
+        let a = _mm256_cmpgt_epi16(x, y);
+        let b = _mm256_cmpeq_epi16(x, y);
+        let x = _mm256_or_si256(a, b); // ge
+                                       // !(x) & 1:
+        _mm256_andnot_si256(x, _mm256_set1_epi64x(-1_i64))
+    }
+
+    // `_mm256_cmplt_epi16` requires `AVX2`
+    signed_256!(
+        is_sorted_gt_i16,
+        "avx2",
+        i16,
+        16,
+        _mm256_cmplt_epi16,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn _mm256_cmplt_epi8(x: __m256i, y: __m256i) -> __m256i {
+        let a = _mm256_cmpgt_epi8(x, y);
+        let b = _mm256_cmpeq_epi8(x, y);
+        let x = _mm256_or_si256(a, b); // ge
+                                       // !(x) & 1:
+        _mm256_andnot_si256(x, _mm256_set1_epi64x(-1_i64))
+    }
+
+    // `_mm256_cmplt_epi8` requires `AVX2`
+    signed_256!(
+        is_sorted_gt_i8,
+        "avx2",
+        i8,
+        32,
+        _mm256_cmplt_epi8,
+        is_sorted_gt_until_alignment_boundary,
+        is_sorted_gt_tail
+    );
+
 }

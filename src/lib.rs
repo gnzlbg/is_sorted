@@ -226,6 +226,50 @@ impl<'a> IsSortedBy<ord::types::Less> for slice::Iter<'a, i64> {
     }
 }
 
+/// Specialization for iterator over &[i64] and increasing order.
+///
+/// If `std` is available, always include this and perform run-time feature
+/// detection inside it to select the `SSE4.1` algorithm when the CPU supports
+/// it.
+///
+/// If `std` is not available, include this specialization only when the
+/// target supports `SSE4.1` at compile-time.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.2", target_feature = "avx2")
+    )
+)]
+impl<'a> IsSortedBy<ord::types::Greater> for slice::Iter<'a, i64> {
+    #[inline]
+    fn is_sorted_by(&mut self, compare: ord::types::Greater) -> bool {
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                unsafe { ::signed::sse42::is_sorted_gt_i64(self.as_slice()) }
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                unsafe { ::signed::avx2::is_sorted_gt_i64(self.as_slice()) }
+            }
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { ::signed::avx2::is_sorted_gt_i64(self.as_slice()) }
+            } else if is_x86_feature_detected!("sse4.2") {
+                unsafe { ::signed::sse42::is_sorted_gt_i64(self.as_slice()) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
 /// Specialization for iterator over &[f64] and increasing order.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -345,6 +389,50 @@ impl<'a> IsSortedBy<ord::types::Less> for slice::Iter<'a, i32> {
                 unsafe { ::signed::avx2::is_sorted_lt_i32(self.as_slice()) }
             } else if is_x86_feature_detected!("sse4.1") {
                 unsafe { ::signed::sse41::is_sorted_lt_i32(self.as_slice()) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
+/// Specialization for iterator over &[i32] and decreasing order.
+///
+/// If `std` is available, always include this and perform run-time feature
+/// detection inside it to select the `SSE4.1` algorithm when the CPU supports
+/// it.
+///
+/// If `std` is not available, include this specialization only when the
+/// target supports `SSE4.1` at compile-time.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx2")
+    )
+)]
+impl<'a> IsSortedBy<ord::types::Greater> for slice::Iter<'a, i32> {
+    #[inline]
+    fn is_sorted_by(&mut self, compare: ord::types::Greater) -> bool {
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                unsafe { ::signed::sse41::is_sorted_gt_i32(self.as_slice()) }
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                unsafe { ::signed::avx2::is_sorted_gt_i32(self.as_slice()) }
+            }
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { ::signed::avx2::is_sorted_gt_i32(self.as_slice()) }
+            } else if is_x86_feature_detected!("sse4.1") {
+                unsafe { ::signed::sse41::is_sorted_gt_i32(self.as_slice()) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
             }
@@ -508,6 +596,43 @@ impl<'a> IsSortedBy<ord::types::Less> for slice::Iter<'a, i16> {
     }
 }
 
+/// Specialization for iterator over &[i16] and decreasing order.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx2")
+    )
+)]
+impl<'a> IsSortedBy<ord::types::Greater> for slice::Iter<'a, i16> {
+    #[inline]
+    fn is_sorted_by(&mut self, compare: ord::types::Greater) -> bool {
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                unsafe { ::signed::sse41::is_sorted_gt_i16(self.as_slice()) }
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                unsafe { ::signed::avx2::is_sorted_gt_i16(self.as_slice()) }
+            }
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { ::signed::avx2::is_sorted_gt_i16(self.as_slice()) }
+            } else if is_x86_feature_detected!("sse4.1") {
+                unsafe { ::signed::sse41::is_sorted_gt_i16(self.as_slice()) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
 /// Specialization for iterator over &[u16] and increasing order.
 #[cfg(feature = "unstable")]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -575,6 +700,43 @@ impl<'a> IsSortedBy<ord::types::Less> for slice::Iter<'a, i8> {
                 unsafe { ::signed::avx2::is_sorted_lt_i8(self.as_slice()) }
             } else if is_x86_feature_detected!("sse4.1") {
                 unsafe { ::signed::sse41::is_sorted_lt_i8(self.as_slice()) }
+            } else {
+                is_sorted_by_scalar_impl(self, compare)
+            }
+        }
+    }
+}
+
+/// Specialization for iterator over &[i8] and increasing order.
+#[cfg(feature = "unstable")]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(
+    any(
+        feature = "use_std",
+        any(target_feature = "sse4.1", target_feature = "avx2")
+    )
+)]
+impl<'a> IsSortedBy<ord::types::Greater> for slice::Iter<'a, i8> {
+    #[inline]
+    fn is_sorted_by(&mut self, compare: ord::types::Greater) -> bool {
+        #[cfg(not(feature = "use_std"))]
+        unsafe {
+            #[cfg(not(target_feature = "avx2"))]
+            {
+                unsafe { ::signed::sse41::is_sorted_gt_i8(self.as_slice()) }
+            }
+            #[cfg(target_feature = "avx2")]
+            {
+                unsafe { ::signed::avx2::is_sorted_gt_i8(self.as_slice()) }
+            }
+        }
+
+        #[cfg(feature = "use_std")]
+        {
+            if is_x86_feature_detected!("avx2") {
+                unsafe { ::signed::avx2::is_sorted_gt_i8(self.as_slice()) }
+            } else if is_x86_feature_detected!("sse4.1") {
+                unsafe { ::signed::sse41::is_sorted_gt_i8(self.as_slice()) }
             } else {
                 is_sorted_by_scalar_impl(self, compare)
             }
@@ -792,6 +954,7 @@ mod tests {
     macro_rules! ints {
         ($name:ident, $id:ident, $cmp_t:ident) => {
             #[test]
+            #[allow(unused_mut, unused_macros, dead_code)]
             fn $name() {
                 fn random_vec(x: usize) -> Vec<$id> {
                     let mut vec = Vec::with_capacity(x);
@@ -818,25 +981,53 @@ mod tests {
                     };
                 }
 
-                let x: [$id; 0] = [];
+                #[cfg(feature = "unstable")]
+                macro_rules! cmp_gt {
+                    () => {
+                        ::Greater
+                    };
+                }
+
+                #[cfg(not(feature = "unstable"))]
+                macro_rules! cmp_gt {
+                    () => {
+                        |a, b| a.partial_cmp(b).unwrap().reverse()
+                    };
+                }
+
+                macro_rules! rev {
+                    (cmp_gt,$i: ident) => {
+                        $i.reverse();
+                    };
+                    ($_o: ident,$i: ident) => {};
+                }
+
+                let mut x: [$id; 0] = [];
+                rev!($cmp_t, x);
                 assert!(x.iter().is_sorted_by($cmp_t!()));
 
-                let x = [0 as $id];
+                let mut x = [0 as $id];
+                rev!($cmp_t, x);
                 assert!(x.iter().is_sorted_by($cmp_t!()));
 
-                let x = [$id::min_value(), $id::max_value()];
+                let mut x = [$id::min_value(), $id::max_value()];
+                rev!($cmp_t, x);
                 assert!(x.iter().is_sorted_by($cmp_t!()));
 
-                let x = [1 as $id, 2, 3, 4];
+                let mut x = [1 as $id, 2, 3, 4];
+                rev!($cmp_t, x);
                 assert!(x.iter().is_sorted_by($cmp_t!()));
 
-                let x = [1 as $id, 3, 2, 4];
+                let mut x = [1 as $id, 3, 2, 4];
+                rev!($cmp_t, x);
                 assert!(!x.iter().is_sorted_by($cmp_t!()));
 
-                let x = [4 as $id, 3, 2, 1];
+                let mut x = [4 as $id, 3, 2, 1];
+                rev!($cmp_t, x);
                 assert!(!x.iter().is_sorted_by($cmp_t!()));
 
-                let x = [4 as $id, 4, 4, 4];
+                let mut x = [4 as $id, 4, 4, 4];
+                rev!($cmp_t, x);
                 assert!(x.iter().is_sorted_by($cmp_t!()));
 
                 let min = $id::min_value();
@@ -849,6 +1040,7 @@ mod tests {
                 for _ in 0..2 {
                     v.push(max);
                 }
+                rev!($cmp_t, v);
                 assert!(v.as_slice().iter().is_sorted_by($cmp_t!()));
 
                 let mut v = Vec::new();
@@ -858,30 +1050,43 @@ mod tests {
                 for _ in 0..5 {
                     v.push(max);
                 }
+                rev!($cmp_t, v);
                 assert!(v.as_slice().iter().is_sorted_by($cmp_t!()));
+
+                macro_rules! min_max {
+                    (cmp_lt,$min_: ident,$max_: ident) => {{
+                        ($min_, $max_)
+                    }};
+                    (cmp_gt,$min_: ident,$max_: ident) => {{
+                        ($max_, $min_)
+                    }};
+                }
+
+                let (min, max) = min_max!($cmp_t, min, max);
 
                 for i in 0..1_000 {
                     let mut vec: Vec<$id> = random_vec(i);
                     vec.sort();
+                    rev!($cmp_t, vec);
                     assert!(
                         vec.as_slice().iter().is_sorted_by($cmp_t!()),
                         "is_sorted0: {:?}",
                         vec
                     );
                     if i > 4 {
-                        vec.push($id::min_value());
+                        vec.push(min);
                         assert!(
                             !vec.as_slice().iter().is_sorted_by($cmp_t!()),
                             "!is_sorted1: {:?}",
                             vec
                         );
-                        vec.insert(i / 3 * 2, $id::min_value());
+                        vec.insert(i / 3 * 2, min);
                         assert!(
                             !vec.as_slice().iter().is_sorted_by($cmp_t!()),
                             "!is_sorted2: {:?}",
                             vec
                         );
-                        vec.insert(0, $id::max_value());
+                        vec.insert(0, max);
                         assert!(
                             !vec.as_slice().iter().is_sorted_by($cmp_t!()),
                             "!is_sorted3: {:?}",
@@ -889,6 +1094,7 @@ mod tests {
                         );
                     }
                 }
+
                 {
                     let n = 1_000;
                     let mut v = Vec::new();
@@ -896,12 +1102,13 @@ mod tests {
                         v.push(i as $id);
                     }
                     v.sort();
+                    rev!($cmp_t, v);
                     {
                         let s: &[$id] = v.as_slice();
                         assert!(s.iter().is_sorted_by($cmp_t!()));
                     }
 
-                    v.push(0);
+                    v.push(min);
                     {
                         let s: &[$id] = v.as_slice();
                         assert!(!s.iter().is_sorted_by($cmp_t!()));
@@ -913,11 +1120,8 @@ mod tests {
                         let s: &[$id] = v.as_slice();
                         assert!(s.iter().is_sorted_by($cmp_t!()));
                     }
-                    let min = $id::min_value();
-                    let max = $id::max_value();
-
                     for i in &mut v {
-                        *i = $id::max_value();
+                        *i = max;
                     }
                     {
                         let s: &[$id] = v.as_slice();
@@ -929,7 +1133,7 @@ mod tests {
                         assert!(!s.iter().is_sorted_by($cmp_t!()));
                     }
                     for i in &mut v {
-                        *i = $id::min_value();
+                        *i = min;
                     }
                     {
                         let s: &[$id] = v.as_slice();
@@ -955,6 +1159,15 @@ mod tests {
     ints!(ints_lt_i32, i32, cmp_lt);
     ints!(ints_lt_u64, u64, cmp_lt);
     ints!(ints_lt_i64, i64, cmp_lt);
+
+    ints!(ints_gt_i8, i8, cmp_gt);
+    ints!(ints_gt_u8, u8, cmp_gt);
+    ints!(ints_gt_i16, i16, cmp_gt);
+    ints!(ints_gt_u16, u16, cmp_gt);
+    ints!(ints_gt_u32, u32, cmp_gt);
+    ints!(ints_gt_i32, i32, cmp_gt);
+    ints!(ints_gt_u64, u64, cmp_gt);
+    ints!(ints_gt_i64, i64, cmp_gt);
 
     #[test]
     fn x86_failures() {
