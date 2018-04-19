@@ -6,160 +6,6 @@ extern crate rand;
 
 use rand::{thread_rng, Rng};
 
-macro_rules! test_float {
-    ($name:ident, $id:ident, $cmp_t:ident) => {
-        #[test]
-        #[allow(unused_mut, unused_macros, dead_code)]
-        fn $name() {
-            #[cfg(feature = "unstable")]
-            macro_rules! cmp_lt {
-                () => {
-                    ::is_sorted::PartialLessUnwrapped
-                };
-            }
-
-            #[cfg(not(feature = "unstable"))]
-            macro_rules! cmp_lt {
-                () => {
-                    |a, b| a.partial_cmp(b).unwrap()
-                };
-            }
-
-            #[cfg(feature = "unstable")]
-            macro_rules! cmp_gt {
-                () => {
-                    ::is_sorted::PartialGreaterUnwrapped
-                };
-            }
-
-            #[cfg(not(feature = "unstable"))]
-            macro_rules! cmp_gt {
-                () => {
-                    |a, b| a.partial_cmp(b).unwrap().reverse()
-                };
-            }
-
-            macro_rules! rev {
-                (cmp_gt,$i: ident) => {
-                    $i.reverse();
-                };
-                ($_o: ident,$i: ident) => {};
-            }
-
-            fn random_vec(x: usize) -> Vec<$id> {
-                let mut vec = Vec::with_capacity(x);
-                let mut rng = thread_rng();
-                for _ in 0..x {
-                    let val: $id = rng.gen_range(0. as $id, 1. as $id);
-                    vec.push(val);
-                }
-                vec
-            }
-
-            let mut x = [1., 2., 3., 4.];
-            rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
-
-            let mut x: [$id; 0] = [];
-            rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
-
-            let mut x = [0 as $id];
-            rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
-
-            let max = ::std::$id::INFINITY;
-            let min = -max;
-
-            let mut x = [min, max];
-            rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
-
-            let mut x = [1 as $id, 2., 3., 4.];
-            rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
-
-            let mut x = [1 as $id, 3., 2., 4.];
-            rev!($cmp_t, x);
-            assert!(!x.iter().is_sorted_by($cmp_t!()));
-
-            let mut x = [4 as $id, 3., 2., 1.];
-            rev!($cmp_t, x);
-            assert!(!x.iter().is_sorted_by($cmp_t!()));
-
-            let mut x = [4 as $id, 4., 4., 4.];
-            rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
-
-            let mut v = Vec::new();
-            for _ in 0..2 {
-                v.push(min);
-            }
-            for _ in 0..2 {
-                v.push(max);
-            }
-            rev!($cmp_t, v);
-            assert!(v.as_slice().iter().is_sorted_by($cmp_t!()));
-
-            let mut v = Vec::new();
-            for _ in 0..4 {
-                v.push(min);
-            }
-            for _ in 0..5 {
-                v.push(max);
-            }
-            rev!($cmp_t, v);
-            assert!(v.as_slice().iter().is_sorted_by($cmp_t!()));
-
-            macro_rules! min_max {
-                (cmp_lt,$min_: ident,$max_: ident) => {{
-                    ($min_, $max_)
-                }};
-                (cmp_gt,$min_: ident,$max_: ident) => {{
-                    ($max_, $min_)
-                }};
-            }
-
-            let (min, max) = min_max!($cmp_t, min, max);
-
-            for i in 0..1_000 {
-                let mut vec: Vec<$id> = random_vec(i);
-                vec.sort_by($cmp_t!());
-                assert!(
-                    vec.as_slice().iter().is_sorted_by($cmp_t!()),
-                    "is_sorted0: {:?}",
-                    vec
-                );
-                if i > 4 {
-                    vec.push(min);
-                    assert!(
-                        !vec.as_slice().iter().is_sorted_by($cmp_t!()),
-                        "!is_sorted1: {:?}",
-                        vec
-                    );
-                    vec.insert(i / 3 * 2, min);
-                    assert!(
-                        !vec.as_slice().iter().is_sorted_by($cmp_t!()),
-                        "!is_sorted2: {:?}",
-                        vec
-                    );
-                    vec.insert(0, max);
-                    assert!(
-                        !vec.as_slice().iter().is_sorted_by($cmp_t!()),
-                        "!is_sorted3: {:?}",
-                        vec
-                    );
-                }
-            }
-        }
-    };
-}
-
-test_float!(test_lt_f32, f32, cmp_lt);
-test_float!(test_lt_f64, f64, cmp_lt);
-test_float!(test_gt_f32, f32, cmp_gt);
-test_float!(test_gt_f64, f64, cmp_gt);
-
 macro_rules! ints {
     ($name:ident, $id:ident, $cmp_t:ident) => {
         #[test]
@@ -179,28 +25,28 @@ macro_rules! ints {
             #[cfg(feature = "unstable")]
             macro_rules! cmp_lt {
                 () => {
-                    ::is_sorted::Less
+                    ::is_sorted::Increasing
                 };
             }
 
             #[cfg(not(feature = "unstable"))]
             macro_rules! cmp_lt {
                 () => {
-                    |a, b| a.cmp(b)
+                    |a, b| a.partial_cmp(b)
                 };
             }
 
             #[cfg(feature = "unstable")]
             macro_rules! cmp_gt {
                 () => {
-                    ::is_sorted::Greater
+                    ::is_sorted::Decreasing
                 };
             }
 
             #[cfg(not(feature = "unstable"))]
             macro_rules! cmp_gt {
                 () => {
-                    |a, b| a.partial_cmp(b).unwrap().reverse()
+                    |a, b| a.partial_cmp(b).map(|v| v.reverse())
                 };
             }
 
@@ -484,19 +330,4 @@ fn x86_failures() {
         102, 104, 106, 106, 109, 112, 113, 115, 115, 117, 124, 125,
     ];
     assert!(v.iter().is_sorted());
-}
-
-#[cfg(feature = "unstable")]
-#[test]
-fn more_floats() {
-    let nan = ::std::f32::NAN;
-
-    let v = [
-        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        0.0, 0.0, 2.0, nan, 1.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0,
-        7.0, 7.0,
-    ];
-
-    assert!(!v.iter().is_sorted_by(is_sorted::PartialLessUnwrapped));
 }

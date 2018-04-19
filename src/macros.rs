@@ -21,8 +21,8 @@ macro_rules! is_sorted_lt_until_alignment_boundary {
             let mut a =
                 $s.as_ptr().align_offset($boundary) / ::mem::size_of::<$ty>();
             while a > 0 && i < n - 1 {
-                if $s.get_unchecked(i as usize)
-                    > $s.get_unchecked(i as usize + 1)
+                if !($s.get_unchecked(i as usize)
+                    <= $s.get_unchecked(i as usize + 1))
                 {
                     return false;
                 }
@@ -45,8 +45,8 @@ macro_rules! is_sorted_lt_tail {
     ($s:ident, $n:ident, $i:ident) => {{
         // Handle the tail of the slice using the scalar algoirithm:
         while $i < $n - 1 {
-            if $s.get_unchecked($i as usize)
-                > $s.get_unchecked($i as usize + 1)
+            if !($s.get_unchecked($i as usize)
+                <= $s.get_unchecked($i as usize + 1))
             {
                 return false;
             }
@@ -74,8 +74,8 @@ macro_rules! is_sorted_gt_until_alignment_boundary {
             let mut a =
                 $s.as_ptr().align_offset($boundary) / ::mem::size_of::<$ty>();
             while a > 0 && i < n - 1 {
-                if $s.get_unchecked(i as usize)
-                    < $s.get_unchecked(i as usize + 1)
+                if !($s.get_unchecked(i as usize)
+                    >= $s.get_unchecked(i as usize + 1))
                 {
                     return false;
                 }
@@ -96,8 +96,8 @@ macro_rules! is_sorted_gt_tail {
     ($s:ident, $n:ident, $i:ident) => {{
         // Handle the tail of the slice using the scalar algoirithm:
         while $i < $n - 1 {
-            if $s.get_unchecked($i as usize)
-                < $s.get_unchecked($i as usize + 1)
+            if !($s.get_unchecked($i as usize)
+                >= $s.get_unchecked($i as usize + 1))
             {
                 return false;
             }

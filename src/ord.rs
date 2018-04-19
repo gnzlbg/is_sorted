@@ -4,100 +4,49 @@
 pub mod types {
     use cmp::Ordering;
 
-    /// Equivalent to `Ord::cmp(a, b)`
-    pub struct Less();
+    /// Equivalent to `Ord::partial_cmp(a, b)`
+    pub struct Increasing();
 
-    impl<'a, 'b, T: Ord> FnOnce<(&'a T, &'b T)> for Less {
-        type Output = Ordering;
+    impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)> for Increasing {
+        type Output = Option<Ordering>;
         extern "rust-call" fn call_once(
             self, arg: (&'a T, &'b T),
         ) -> Self::Output {
-            arg.0.cmp(arg.1)
+            arg.0.partial_cmp(arg.1)
         }
     }
 
-    impl<'a, 'b, T: Ord> FnMut<(&'a T, &'b T)> for Less {
+    impl<'a, 'b, T: PartialOrd> FnMut<(&'a T, &'b T)> for Increasing {
         extern "rust-call" fn call_mut(
             &mut self, arg: (&'a T, &'b T),
         ) -> Self::Output {
-            arg.0.cmp(arg.1)
+            arg.0.partial_cmp(arg.1)
         }
     }
 
-    /// Equivalent to `Ord::cmp(a, b).reverse()`
-    pub struct Greater();
+    /// Equivalent to `Ord::partial_cmp(a, b).reverse()`
+    pub struct Decreasing();
 
-    impl<'a, 'b, T: Ord> FnOnce<(&'a T, &'b T)> for Greater {
-        type Output = Ordering;
+    impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)> for Decreasing {
+        type Output = Option<Ordering>;
         extern "rust-call" fn call_once(
             self, arg: (&'a T, &'b T),
         ) -> Self::Output {
-            arg.0.cmp(arg.1).reverse()
+            arg.0.partial_cmp(arg.1).map(|v| v.reverse())
         }
     }
 
-    impl<'a, 'b, T: Ord> FnMut<(&'a T, &'b T)> for Greater {
+    impl<'a, 'b, T: PartialOrd> FnMut<(&'a T, &'b T)> for Decreasing {
         extern "rust-call" fn call_mut(
             &mut self, arg: (&'a T, &'b T),
         ) -> Self::Output {
-            arg.0.cmp(arg.1).reverse()
+            arg.0.partial_cmp(arg.1).map(|v| v.reverse())
         }
     }
-
-    /// Equivalent to `PartialOrd::partial_cmp(a, b).unwrap()`
-    pub struct PartialLessUnwrapped();
-
-    impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)> for PartialLessUnwrapped {
-        type Output = Ordering;
-        extern "rust-call" fn call_once(
-            self, arg: (&'a T, &'b T),
-        ) -> Self::Output {
-            arg.0.partial_cmp(arg.1).unwrap()
-        }
-    }
-
-    impl<'a, 'b, T: PartialOrd> FnMut<(&'a T, &'b T)> for PartialLessUnwrapped {
-        extern "rust-call" fn call_mut(
-            &mut self, arg: (&'a T, &'b T),
-        ) -> Self::Output {
-            arg.0.partial_cmp(arg.1).unwrap()
-        }
-    }
-
-    /// Equivalent to `PartialOrd::partial_cmp(a, b).unwrap().reverse()`
-    pub struct PartialGreaterUnwrapped();
-
-    impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)>
-        for PartialGreaterUnwrapped
-    {
-        type Output = Ordering;
-        extern "rust-call" fn call_once(
-            self, arg: (&'a T, &'b T),
-        ) -> Self::Output {
-            arg.0.partial_cmp(arg.1).unwrap().reverse()
-        }
-    }
-
-    impl<'a, 'b, T: PartialOrd> FnMut<(&'a T, &'b T)> for PartialGreaterUnwrapped {
-        extern "rust-call" fn call_mut(
-            &mut self, arg: (&'a T, &'b T),
-        ) -> Self::Output {
-            arg.0.partial_cmp(arg.1).unwrap().reverse()
-        }
-    }
-
 }
 
-/// Callable equivalent to `Ord::cmp(a, b)`.
-pub const Less: types::Less = types::Less();
+/// Increasing ordering: callable equivalent to `a.partial_cmp(b)`.
+pub const Increasing: types::Increasing = types::Increasing();
 
-/// Callable equivalent to `Ord::cmp(a, b).reverse()`.
-pub const Greater: types::Greater = types::Greater();
-
-/// Callable equivalent to `PartialOrd::partial_cmp(a, b).unwrap()`.
-pub const PartialLessUnwrapped: types::PartialLessUnwrapped =
-    types::PartialLessUnwrapped();
-
-/// Callable equivalent to `PartialOrd::partial_cmp(a, b).unwrap().reverse()`.
-pub const PartialGreaterUnwrapped: types::PartialGreaterUnwrapped =
-    types::PartialGreaterUnwrapped();
+/// Decreasing ordering: callable equivalent to `a.partial_cmp(b).reverse()`.
+pub const Decreasing: types::Decreasing = types::Decreasing();

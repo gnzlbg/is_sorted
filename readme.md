@@ -24,10 +24,8 @@ writing Rust components. This crates shows how to:
 The crate also adds the following callables that enable specialization based on
 the comparison operation being used:
 
-* `is_sorted::Less`: equivalent to `a.cmp(b)`
-* `is_sorted::Greater`: equivalent to `a.cmp(b).reverse()`
-* `is_sorted::PartialLessUnwrapped`: equivalent to `a.partial_cmp(b).unwrap()`
-* `is_sorted::PartialGreaterUnwrapped`: equivalent to `a.partial_cmp(b).unwrap().reverse()`
+* `is_sorted::Increasing`: equivalent to `a.partial_cmp(b)`
+* `is_sorted::Decreasing`: equivalent to `a.partial_cmp(b).map(|v| v.reverse())`
 
 When compiled with `--features unstable` the crate makes use of the following
 nightly-only features:
@@ -35,8 +33,6 @@ nightly-only features:
 * `fn_traits`, `unboxed_closures`: to implement the comparison callables
 * `specialization`: to specialize the algorithms for pairs of types and callables
 * `stdsimd`: `std::arch` is used by the specialization to explicitly vectorize the algorithms
-* `target_feature` and `cfg_target_feature`: use to enable the appropriate
-  target-features of the specialized algorithms
 * `align_offset`: is used to handle misaligned inputs in the vectorized algorithms
 
 Explicit vectorization delivers between 1.5x and 10x speed-ups over the code
