@@ -119,6 +119,28 @@ pub trait IsSorted: Iterator {
     {
         self.map(|v| key(&v)).is_sorted()
     }
+
+    /// Returns the first unsorted pair of items in the iterator and its tail.
+    ///
+    /// ```
+    /// # use is_sorted::IsSorted;
+    /// let v = &[0_i32, 1, 2, 3, 4, 1, 2, 3];
+    /// let (first, tail) = v.iter().is_sorted_until_by(|a,b| {
+    ///     a.partial_cmp(b)
+    /// });
+    /// assert_eq!(first, Some((&4,&1)));
+    /// assert_eq!(tail.as_slice(), &[2, 3]);
+    /// ```
+    #[inline]
+    fn is_sorted_until_by<F>(
+        self, compare: F,
+    ) -> (Option<(Self::Item, Self::Item)>, Self)
+    where
+        Self: Sized,
+        F: FnMut(&Self::Item, &Self::Item) -> Option<Ordering>,
+    {
+        is_sorted_until_by_impl(self, compare)
+    }
 }
 
 // Blanket implementation for all types that implement `Iterator`:
@@ -187,677 +209,235 @@ where
     true
 }
 
-/// Specialization for iterator over &[i64] and increasing order.
+// This function dispatch to the appropriate `is_sorted_until_by`
+// implementation.
+#[inline]
+fn is_sorted_until_by_impl<I, F>(
+    iter: I, compare: F,
+) -> (Option<(I::Item, I::Item)>, I)
+where
+    I: Iterator,
+    F: FnMut(&I::Item, &I::Item) -> Option<Ordering>,
+{
+    <I as IsSortedUntilBy<F>>::is_sorted_until_by(iter, compare)
+}
+
+// This trait is used to provide specialized implementations of
+// `is_sorted_until_by` for different (Iterator,Cmp) pairs:
+trait IsSortedUntilBy<F>: Iterator
+where
+    F: FnMut(&Self::Item, &Self::Item) -> Option<Ordering>,
+{
+    fn is_sorted_until_by(
+        self, compare: F,
+    ) -> (Option<(Self::Item, Self::Item)>, Self);
+}
+
+// This blanket implementation acts as the fall-back, and just forwards to the
+// scalar implementation of the algorithm.
+impl<I, F> IsSortedUntilBy<F> for I
+where
+    I: Iterator,
+    F: FnMut(&I::Item, &I::Item) -> Option<Ordering>,
+{
+    #[inline]
+    #[cfg(feature = "unstable")]
+    default fn is_sorted_until_by(
+        self, compare: F,
+    ) -> (Option<(Self::Item, Self::Item)>, Self) {
+        is_sorted_until_by_scalar_impl(self, compare)
+    }
+
+    #[inline]
+    #[cfg(not(feature = "unstable"))]
+    fn is_sorted_until_by(
+        self, compare: F,
+    ) -> (Option<(Self::Item, Self::Item)>, Self) {
+        is_sorted_until_by_scalar_impl(self, compare)
+    }
+}
+
+/// Scalar `is_sorted_until_by` implementation.
+#[inline]
+fn is_sorted_until_by_scalar_impl<I, F>(
+    mut iter: I, mut compare: F,
+) -> (Option<(I::Item, I::Item)>, I)
+where
+    I: Iterator,
+    F: FnMut(&I::Item, &I::Item) -> Option<Ordering>,
+{
+    let first = iter.next();
+    if let Some(mut first) = first {
+        loop {
+            let next = iter.next();
+            if let Some(next) = next {
+                if let Some(ord) = compare(&first, &next) {
+                    if ord != Ordering::Greater {
+                        first = next;
+                        continue;
+                    }
+                }
+                return (Some((first, next)), iter);
+            }
+            return (None, iter);
+        }
+    }
+    (None, iter)
+}
+
+/// Adds a specialization of the IsSortedBy trait for a slice iterator.
 ///
-/// On nightly:
-///
-/// * if `std` is available, always include this and select the best
-/// implementation using run-time feature detection.
-///
-/// * otherwise, include this specialization only when we can statically
-/// determine that the target supports one of the implementations available
-/// (using compile-time feature detection).
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.2", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Increasing> for slice::Iter<'a, i64> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Increasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::signed::sse42::is_sorted_lt_i64(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::signed::avx2::is_sorted_lt_i64(self.as_slice()) }
-            }
-        }
+/// The (feature,function) pairs must be listed in order of decreasing
+/// preference, that is, first pair will be preferred over second pair if its
+/// feature is enabled.
+macro_rules! is_sorted_by_slice_iter_x86 {
+    ($id:ident, $cmp:path : $([$feature:tt, $function:path]),*) => {
+        #[cfg(feature = "unstable")]
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        #[cfg(
+            any(
+                // Either we have run-time feature detection:
+                feature = "use_std",
+                // Or the features are enabled at compile-time
+                any($(target_feature = $feature),*)
+            )
+        )]
+        impl<'a> IsSortedBy<$cmp> for slice::Iter<'a, $id> {
+            #[inline]
+            fn is_sorted_by(&mut self, compare: $cmp) -> bool {
+                // If we don't have run-time feature detection, we use
+                // compile-time detectio. This specialization only exists if
+                // at least one of the features is actually enabled, so we don't
+                // need a fallback here.
+                #[cfg(not(feature = "use_std"))]
+                unsafe {
+                    $(
+                        #[cfg(target_feature = $feature)]
+                        {
+                            return $function(self.as_slice());
+                        }
+                    )*
+                }
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::signed::avx2::is_sorted_lt_i64(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.2") {
-                unsafe { ::signed::sse42::is_sorted_lt_i64(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
+                #[cfg(feature = "use_std")]
+                {
+                    $(
+                        if is_x86_feature_detected!($feature) {
+                            return unsafe { $function(self.as_slice()) };
+                        }
+                    )*;
+                    // If feature detection fails use scalar code:
+                    return is_sorted_by_scalar_impl(self, compare);
+                }
             }
         }
     }
 }
 
-/// Specialization for iterator over &[i64] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.2", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Decreasing> for slice::Iter<'a, i64> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Decreasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::signed::sse42::is_sorted_gt_i64(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::signed::avx2::is_sorted_gt_i64(self.as_slice()) }
-            }
-        }
+is_sorted_by_slice_iter_x86!(
+    i64, ord::types::Increasing :
+    ["avx2", ::signed::avx2::is_sorted_lt_i64],
+    ["sse4.2", ::signed::sse42::is_sorted_lt_i64]
+);
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::signed::avx2::is_sorted_gt_i64(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.2") {
-                unsafe { ::signed::sse42::is_sorted_gt_i64(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
+is_sorted_by_slice_iter_x86!(
+    i64, ord::types::Decreasing :
+    ["avx2", ::signed::avx2::is_sorted_gt_i64],
+    ["sse4.2", ::signed::sse42::is_sorted_gt_i64]
+);
 
-/// Specialization for iterator over &[f64] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Increasing> for slice::Iter<'a, f64> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Increasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx"))]
-            {
-                unsafe { ::floats::sse41::is_sorted_lt_f64(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx")]
-            {
-                unsafe { ::floats::avx::is_sorted_lt_f64(self.as_slice()) }
-            }
-        }
+is_sorted_by_slice_iter_x86!(
+    f64, ord::types::Increasing :
+    ["avx", ::floats::avx::is_sorted_lt_f64],
+    ["sse4.1", ::floats::sse41::is_sorted_lt_f64]
+);
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx") {
-                unsafe { ::floats::avx::is_sorted_lt_f64(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::floats::sse41::is_sorted_lt_f64(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
+is_sorted_by_slice_iter_x86!(
+    f64, ord::types::Decreasing :
+    ["avx", ::floats::avx::is_sorted_gt_f64],
+    ["sse4.1", ::floats::sse41::is_sorted_gt_f64]
+);
 
-/// Specialization for iterator over &[f64] and decreasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Decreasing> for slice::Iter<'a, f64> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Decreasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx"))]
-            {
-                unsafe { ::floats::sse41::is_sorted_gt_f64(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx")]
-            {
-                unsafe { ::floats::avx::is_sorted_gt_f64(self.as_slice()) }
-            }
-        }
+is_sorted_by_slice_iter_x86!(
+    i32, ord::types::Increasing :
+    ["avx2", ::signed::avx2::is_sorted_lt_i32],
+    ["sse4.1", ::signed::sse41::is_sorted_lt_i32]
+);
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx") {
-                unsafe { ::floats::avx::is_sorted_gt_f64(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::floats::sse41::is_sorted_gt_f64(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
+is_sorted_by_slice_iter_x86!(
+    i32, ord::types::Decreasing :
+    ["avx2", ::signed::avx2::is_sorted_gt_i32],
+    ["sse4.1", ::signed::sse41::is_sorted_gt_i32]
+);
 
-/// Specialization for iterator over &[i32] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Increasing> for slice::Iter<'a, i32> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Increasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::signed::sse41::is_sorted_lt_i32(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::signed::avx2::is_sorted_lt_i32(self.as_slice()) }
-            }
-        }
+is_sorted_by_slice_iter_x86!(
+    u32, ord::types::Increasing :
+    ["avx2", ::unsigned::avx2::is_sorted_lt_u32],
+    ["sse4.1", ::unsigned::sse41::is_sorted_lt_u32]
+);
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::signed::avx2::is_sorted_lt_i32(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::signed::sse41::is_sorted_lt_i32(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
+is_sorted_by_slice_iter_x86!(
+    u32, ord::types::Decreasing :
+    ["avx2", ::unsigned::avx2::is_sorted_gt_u32],
+    ["sse4.1", ::unsigned::sse41::is_sorted_gt_u32]
+);
 
-/// Specialization for iterator over &[i32] and decreasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Decreasing> for slice::Iter<'a, i32> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Decreasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::signed::sse41::is_sorted_gt_i32(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::signed::avx2::is_sorted_gt_i32(self.as_slice()) }
-            }
-        }
+is_sorted_by_slice_iter_x86!(
+    f32, ord::types::Increasing :
+    ["avx", ::floats::avx::is_sorted_lt_f32],
+    ["sse4.1", ::floats::sse41::is_sorted_lt_f32]
+);
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::signed::avx2::is_sorted_gt_i32(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::signed::sse41::is_sorted_gt_i32(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
+is_sorted_by_slice_iter_x86!(
+    f32, ord::types::Decreasing :
+    ["avx", ::floats::avx::is_sorted_gt_f32],
+    ["sse4.1", ::floats::sse41::is_sorted_gt_f32]
+);
 
-/// Specialization for iterator over &[u32] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Increasing> for slice::Iter<'a, u32> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Increasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::unsigned::sse41::is_sorted_lt_u32(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::unsigned::avx2::is_sorted_lt_u32(self.as_slice()) }
-            }
-        }
+is_sorted_by_slice_iter_x86!(
+    i16, ord::types::Increasing :
+    ["avx2", ::signed::avx2::is_sorted_lt_i16],
+    ["sse4.1", ::signed::sse41::is_sorted_lt_i16]
+);
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::unsigned::avx2::is_sorted_lt_u32(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::unsigned::sse41::is_sorted_lt_u32(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
+is_sorted_by_slice_iter_x86!(
+    i16, ord::types::Decreasing :
+    ["avx2", ::signed::avx2::is_sorted_gt_i16],
+    ["sse4.1", ::signed::sse41::is_sorted_gt_i16]
+);
 
-/// Specialization for iterator over &[u32] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Decreasing> for slice::Iter<'a, u32> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Decreasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::unsigned::sse41::is_sorted_gt_u32(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::unsigned::avx2::is_sorted_gt_u32(self.as_slice()) }
-            }
-        }
+is_sorted_by_slice_iter_x86!(
+    u16, ord::types::Increasing :
+    ["avx2", ::unsigned::avx2::is_sorted_lt_u16],
+    ["sse4.1", ::unsigned::sse41::is_sorted_lt_u16]
+);
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::unsigned::avx2::is_sorted_gt_u32(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::unsigned::sse41::is_sorted_gt_u32(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
+is_sorted_by_slice_iter_x86!(
+    u16, ord::types::Decreasing :
+    ["avx2", ::unsigned::avx2::is_sorted_gt_u16],
+    ["sse4.1", ::unsigned::sse41::is_sorted_gt_u16]
+);
 
-/// Specialization for iterator over &[f32] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Increasing> for slice::Iter<'a, f32> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Increasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx"))]
-            {
-                unsafe { ::floats::sse41::is_sorted_lt_f32(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx")]
-            {
-                unsafe { ::floats::avx::is_sorted_lt_f32(self.as_slice()) }
-            }
-        }
+is_sorted_by_slice_iter_x86!(
+    i8, ord::types::Increasing :
+    ["avx2", ::signed::avx2::is_sorted_lt_i8],
+    ["sse4.1", ::signed::sse41::is_sorted_lt_i8]
+);
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx") {
-                unsafe { ::floats::avx::is_sorted_lt_f32(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::floats::sse41::is_sorted_lt_f32(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
+is_sorted_by_slice_iter_x86!(
+    i8, ord::types::Decreasing :
+    ["avx2", ::signed::avx2::is_sorted_gt_i8],
+    ["sse4.1", ::signed::sse41::is_sorted_gt_i8]
+);
 
-/// Specialization for iterator over &[f32] and decreasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Decreasing> for slice::Iter<'a, f32> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Decreasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx"))]
-            {
-                unsafe { ::floats::sse41::is_sorted_gt_f32(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx")]
-            {
-                unsafe { ::floats::avx::is_sorted_gt_f32(self.as_slice()) }
-            }
-        }
+is_sorted_by_slice_iter_x86!(
+    u8, ord::types::Increasing :
+    ["avx2", ::unsigned::avx2::is_sorted_lt_u8],
+    ["sse4.1", ::unsigned::sse41::is_sorted_lt_u8]
+);
 
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx") {
-                unsafe { ::floats::avx::is_sorted_gt_f32(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::floats::sse41::is_sorted_gt_f32(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
-
-/// Specialization for iterator over &[i16] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Increasing> for slice::Iter<'a, i16> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Increasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::signed::sse41::is_sorted_lt_i16(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::signed::avx2::is_sorted_lt_i16(self.as_slice()) }
-            }
-        }
-
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::signed::avx2::is_sorted_lt_i16(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::signed::sse41::is_sorted_lt_i16(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
-
-/// Specialization for iterator over &[i16] and decreasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Decreasing> for slice::Iter<'a, i16> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Decreasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::signed::sse41::is_sorted_gt_i16(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::signed::avx2::is_sorted_gt_i16(self.as_slice()) }
-            }
-        }
-
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::signed::avx2::is_sorted_gt_i16(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::signed::sse41::is_sorted_gt_i16(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
-
-/// Specialization for iterator over &[u16] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Increasing> for slice::Iter<'a, u16> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Increasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::unsigned::sse41::is_sorted_lt_u16(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::unsigned::avx2::is_sorted_lt_u16(self.as_slice()) }
-            }
-        }
-
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::unsigned::avx2::is_sorted_lt_u16(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::unsigned::sse41::is_sorted_lt_u16(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
-
-/// Specialization for iterator over &[u16] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Decreasing> for slice::Iter<'a, u16> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Decreasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::unsigned::sse41::is_sorted_gt_u16(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::unsigned::avx2::is_sorted_gt_u16(self.as_slice()) }
-            }
-        }
-
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::unsigned::avx2::is_sorted_gt_u16(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::unsigned::sse41::is_sorted_gt_u16(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
-
-/// Specialization for iterator over &[i8] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Increasing> for slice::Iter<'a, i8> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Increasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::signed::sse41::is_sorted_lt_i8(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::signed::avx2::is_sorted_lt_i8(self.as_slice()) }
-            }
-        }
-
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::signed::avx2::is_sorted_lt_i8(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::signed::sse41::is_sorted_lt_i8(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
-
-/// Specialization for iterator over &[i8] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Decreasing> for slice::Iter<'a, i8> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Decreasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::signed::sse41::is_sorted_gt_i8(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::signed::avx2::is_sorted_gt_i8(self.as_slice()) }
-            }
-        }
-
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::signed::avx2::is_sorted_gt_i8(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse4.1") {
-                unsafe { ::signed::sse41::is_sorted_gt_i8(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
-
-/// Specialization for iterator over &[u8] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Increasing> for slice::Iter<'a, u8> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Increasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::unsigned::sse41::is_sorted_lt_u8(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::unsigned::avx2::is_sorted_lt_u8(self.as_slice()) }
-            }
-        }
-
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::unsigned::avx2::is_sorted_lt_u8(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse2") {
-                unsafe { ::unsigned::sse41::is_sorted_lt_u8(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
-
-/// Specialization for iterator over &[u8] and increasing order.
-#[cfg(feature = "unstable")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[cfg(
-    any(
-        feature = "use_std",
-        any(target_feature = "sse4.1", target_feature = "avx2")
-    )
-)]
-impl<'a> IsSortedBy<ord::types::Decreasing> for slice::Iter<'a, u8> {
-    #[inline]
-    fn is_sorted_by(&mut self, compare: ord::types::Decreasing) -> bool {
-        #[cfg(not(feature = "use_std"))]
-        unsafe {
-            #[cfg(not(target_feature = "avx2"))]
-            {
-                unsafe { ::unsigned::sse41::is_sorted_gt_u8(self.as_slice()) }
-            }
-            #[cfg(target_feature = "avx2")]
-            {
-                unsafe { ::unsigned::avx2::is_sorted_gt_u8(self.as_slice()) }
-            }
-        }
-
-        #[cfg(feature = "use_std")]
-        {
-            if is_x86_feature_detected!("avx2") {
-                unsafe { ::unsigned::avx2::is_sorted_gt_u8(self.as_slice()) }
-            } else if is_x86_feature_detected!("sse2") {
-                unsafe { ::unsigned::sse41::is_sorted_gt_u8(self.as_slice()) }
-            } else {
-                is_sorted_by_scalar_impl(self, compare)
-            }
-        }
-    }
-}
+is_sorted_by_slice_iter_x86!(
+    u8, ord::types::Decreasing :
+    ["avx2", ::unsigned::avx2::is_sorted_gt_u8],
+    ["sse4.1", ::unsigned::sse41::is_sorted_gt_u8]
+);

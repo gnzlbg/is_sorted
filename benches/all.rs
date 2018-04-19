@@ -118,7 +118,7 @@ macro_rules! sorted_gt {
                 black_box(s.as_ptr());
                 #[cfg(feature = "unstable")]
                 {
-                    use is_sorted::Greater;
+                    use is_sorted::Decreasing;
                     assert!(black_box(s.iter().is_sorted_by(Decreasing)));
                 }
                 #[cfg(not(feature = "unstable"))]

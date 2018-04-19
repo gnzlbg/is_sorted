@@ -1,4 +1,5 @@
 //! Algorithms for unsigned integers
+#![allow(unused_attributes)]
 
 /// 128-bit-wide algorithm for slices of unsigned integers
 ///

@@ -1,4 +1,5 @@
 //! Algorithms for floats
+#![allow(unused_attributes)]
 
 /// 128-bit wide algorithm for slices of floating-point numbers
 ///
