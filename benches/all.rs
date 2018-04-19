@@ -90,45 +90,12 @@ macro_rules! sorted_lt {
             for _ in 0..n {
                 v.push(<$ty as Rnd>::rnd());
             }
-            v.sort();
-            black_box(&mut v);
-            b.iter(|| {
-                let s: &[$ty] = v.as_slice();
-                black_box(s.as_ptr());
-                assert!(black_box(s.iter().is_sorted()));
-            });
-        }
-    };
-}
-
-macro_rules! sorted_lt_f {
-    ($name:ident, $ty:ident, $size:expr) => {
-        #[bench]
-        fn $name(b: &mut Bencher) {
-            let n = $size;
-            let mut v: Vec<$ty> = Vec::with_capacity(n);
-            for _ in 0..n {
-                v.push(<$ty as Rnd>::rnd());
-            }
             v.sort_by(|a, b| a.partial_cmp(b).unwrap());
             black_box(&mut v);
             b.iter(|| {
                 let s: &[$ty] = v.as_slice();
                 black_box(s.as_ptr());
-                #[cfg(feature = "unstable")]
-                {
-                    use is_sorted::PartialLessUnwrapped;
-                    assert!(black_box(
-                        s.iter().is_sorted_by(PartialLessUnwrapped)
-                    ));
-                }
-                #[cfg(not(feature = "unstable"))]
-                {
-                    assert!(black_box(
-                        s.iter()
-                            .is_sorted_by(|a, b| a.partial_cmp(b).unwrap()),
-                    ));
-                }
+                assert!(black_box(s.iter().is_sorted()));
             });
         }
     };
@@ -143,37 +110,6 @@ macro_rules! sorted_gt {
             for _ in 0..n {
                 v.push(<$ty as Rnd>::rnd());
             }
-            v.sort();
-            v.reverse();
-            black_box(&mut v);
-            b.iter(|| {
-                let s: &[$ty] = v.as_slice();
-                black_box(s.as_ptr());
-                #[cfg(feature = "unstable")]
-                {
-                    use is_sorted::Greater;
-                    assert!(black_box(s.iter().is_sorted_by(Greater)));
-                }
-                #[cfg(not(feature = "unstable"))]
-                {
-                    assert!(black_box(
-                        s.iter().is_sorted_by(|a, b| a.cmp(b).reverse()),
-                    ));
-                }
-            });
-        }
-    };
-}
-
-macro_rules! sorted_gt_f {
-    ($name:ident, $ty:ident, $size:expr) => {
-        #[bench]
-        fn $name(b: &mut Bencher) {
-            let n = $size;
-            let mut v: Vec<$ty> = Vec::with_capacity(n);
-            for _ in 0..n {
-                v.push(<$ty as Rnd>::rnd());
-            }
             v.sort_by(|a, b| a.partial_cmp(b).unwrap());
             v.reverse();
             black_box(&mut v);
@@ -182,16 +118,14 @@ macro_rules! sorted_gt_f {
                 black_box(s.as_ptr());
                 #[cfg(feature = "unstable")]
                 {
-                    use is_sorted::PartialGreaterUnwrapped;
-                    assert!(black_box(
-                        s.iter().is_sorted_by(PartialGreaterUnwrapped)
-                    ));
+                    use is_sorted::Greater;
+                    assert!(black_box(s.iter().is_sorted_by(Decreasing)));
                 }
                 #[cfg(not(feature = "unstable"))]
                 {
                     assert!(black_box(s.iter().is_sorted_by(|a, b| {
-                        a.partial_cmp(b).unwrap().reverse()
-                    })));
+                        a.partial_cmp(b).map(|v| v.reverse())
+                    }),));
                 }
             });
         }
@@ -215,17 +149,17 @@ sorted_lt!(run_lt_16u_is_sorted, u16, N16);
 
 sorted_lt!(run_lt_32i_baseline, wi32, N32);
 sorted_lt!(run_lt_32u_baseline, wu32, N32);
-sorted_lt_f!(run_lt_32f_baseline, wf32, N32);
+sorted_lt!(run_lt_32f_baseline, wf32, N32);
 sorted_lt!(run_lt_32i_is_sorted, i32, N32);
 sorted_lt!(run_lt_32u_is_sorted, u32, N32);
-sorted_lt_f!(run_lt_32f_is_sorted, f32, N32);
+sorted_lt!(run_lt_32f_is_sorted, f32, N32);
 
 sorted_lt!(run_lt_64i_baseline, wi64, N64);
 sorted_lt!(run_lt_64u_baseline, wu64, N64);
-sorted_lt_f!(run_lt_64f_baseline, wf64, N64);
+sorted_lt!(run_lt_64f_baseline, wf64, N64);
 sorted_lt!(run_lt_64i_is_sorted, i64, N64);
 sorted_lt!(run_lt_64u_is_sorted, u64, N64);
-sorted_lt_f!(run_lt_64f_is_sorted, f64, N64);
+sorted_lt!(run_lt_64f_is_sorted, f64, N64);
 
 sorted_gt!(run_gt_8i_baseline, wi8, N8);
 sorted_gt!(run_gt_8u_baseline, wu8, N8);
@@ -239,14 +173,14 @@ sorted_gt!(run_gt_16u_is_sorted, u16, N16);
 
 sorted_gt!(run_gt_32i_baseline, wi32, N32);
 sorted_gt!(run_gt_32u_baseline, wu32, N32);
-sorted_gt_f!(run_gt_32f_baseline, wf32, N32);
+sorted_gt!(run_gt_32f_baseline, wf32, N32);
 sorted_gt!(run_gt_32i_is_sorted, i32, N32);
 sorted_gt!(run_gt_32u_is_sorted, u32, N32);
-sorted_gt_f!(run_gt_32f_is_sorted, f32, N32);
+sorted_gt!(run_gt_32f_is_sorted, f32, N32);
 
 sorted_gt!(run_gt_64i_baseline, wi64, N64);
 sorted_gt!(run_gt_64u_baseline, wu64, N64);
-sorted_gt_f!(run_gt_64f_baseline, wf64, N64);
+sorted_gt!(run_gt_64f_baseline, wf64, N64);
 sorted_gt!(run_gt_64i_is_sorted, i64, N64);
 sorted_gt!(run_gt_64u_is_sorted, u64, N64);
-sorted_gt_f!(run_gt_64f_is_sorted, f64, N64);
+sorted_gt!(run_gt_64f_is_sorted, f64, N64);
