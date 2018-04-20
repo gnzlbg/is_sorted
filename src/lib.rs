@@ -124,7 +124,7 @@ pub trait IsSorted: Iterator {
     ///
     /// ```
     /// # use is_sorted::IsSorted;
-    /// let v = &[0_i32, 1, 2, 3, 4, 1, 2, 3];
+    /// let v: &[i32] = &[0, 1, 2, 3, 4, 1, 2, 3];
     /// let (first, tail) = v.iter().is_sorted_until_by(|a,b| {
     ///     a.partial_cmp(b)
     /// });
@@ -285,6 +285,23 @@ where
     (None, iter)
 }
 
+pub fn is_sorted_until_by<T, F>(slice: &[T], f: F) -> usize
+where
+    for<'r, 's> F: FnMut(&'r &T, &'s &T) -> Option<Ordering>,
+{
+    let (boundary, tail) = IsSorted::is_sorted_until_by(slice.iter(), f);
+    match boundary {
+        Some(_) => {
+            debug_assert!(tail.as_slice().len() < slice.len());
+            slice.len() - tail.as_slice().len() - 1
+        }
+        None => {
+            debug_assert!(tail.as_slice().is_empty());
+            slice.len()
+        }
+    }
+}
+
 /// Adds a specialization of the IsSortedBy trait for a slice iterator.
 ///
 /// The (feature,function) pairs must be listed in order of decreasing
@@ -306,7 +323,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
             #[inline]
             fn is_sorted_by(&mut self, compare: $cmp) -> bool {
                 // If we don't have run-time feature detection, we use
-                // compile-time detectio. This specialization only exists if
+                // compile-time detection. This specialization only exists if
                 // at least one of the features is actually enabled, so we don't
                 // need a fallback here.
                 #[cfg(not(feature = "use_std"))]
@@ -314,7 +331,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
                     $(
                         #[cfg(target_feature = $feature)]
                         {
-                            return $function(self.as_slice());
+                            return $function(self.as_slice()) == self.as_slice().len();
                         }
                     )*
                 }
@@ -323,11 +340,60 @@ macro_rules! is_sorted_by_slice_iter_x86 {
                 {
                     $(
                         if is_x86_feature_detected!($feature) {
-                            return unsafe { $function(self.as_slice()) };
+                            return unsafe { $function(self.as_slice())  == self.as_slice().len() };
                         }
                     )*;
                     // If feature detection fails use scalar code:
                     return is_sorted_by_scalar_impl(self, compare);
+                }
+            }
+        }
+
+        #[cfg(feature = "unstable")]
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        #[cfg(
+            any(
+                // Either we have run-time feature detection:
+                feature = "use_std",
+                // Or the features are enabled at compile-time
+                any($(target_feature = $feature),*)
+            )
+        )]
+        impl<'a> IsSortedUntilBy<$cmp> for slice::Iter<'a, $id> {
+            #[inline]
+            fn is_sorted_until_by(self, compare: $cmp)
+                                  -> (Option<(Self::Item,Self::Item)>, Self) {
+                // If we don't have run-time feature detection, we use
+                // compile-time detection. This specialization only exists if
+                // at least one of the features is actually enabled, so we don't
+                // need a fallback here.
+                #[cfg(not(feature = "use_std"))]
+                unsafe {
+                    $(
+                        #[cfg(target_feature = $feature)]
+                        {
+                            // The slice values until the index i returned by
+                            // the impl $function are sorted. The slice &[0..j]
+                            // for j > i might be sorted as well, so we just
+                            // proceed to call the scalar implementation on it:
+                            let s = self.as_slice();
+                            let i = $function(s);
+                            return is_sorted_until_by_scalar_impl(s[i..].iter(), compare);
+                        }
+                    )*
+                }
+
+                #[cfg(feature = "use_std")]
+                {
+                    $(
+                        if is_x86_feature_detected!($feature) {
+                            let s = self.as_slice();
+                            let i =  unsafe { $function(s) };
+                            return is_sorted_until_by_scalar_impl(s[i..].iter(), compare);
+                        }
+                    )*;
+                    // If feature detection fails use scalar code:
+                    return is_sorted_until_by_scalar_impl(self, compare);
                 }
             }
         }

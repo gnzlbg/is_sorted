@@ -21,7 +21,7 @@ macro_rules! floats_128 {
     ) => {
         #[inline]
         #[target_feature(enable = $cpuid)]
-        pub unsafe fn $name(s: &[$id]) -> bool {
+        pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
             use arch::x86::*;
             #[cfg(target_arch = "x86_64")]
@@ -29,23 +29,23 @@ macro_rules! floats_128 {
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 16;
-            let mut i = $head!(s, $id, ALIGNMENT);
+            let mut i: usize = $head!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an
             // ALIGNMENT boundary
-            let n = s.len() as isize;
-            let ap = |o| (s.as_ptr().offset(o)) as *const $id;
+            let n = s.len();
+            let ap = |o| (s.as_ptr().offset(o as isize)) as *const $id;
 
             // Unroll factor: #of 128-bit vectors processed per loop iteration
-            const NVECS: isize = 4;
+            const NVECS: usize = 4;
             // #lanes in each 128-bit vector
-            const NLANES: isize = $nlanes;
+            const NLANES: usize = $nlanes;
             // Stride: number of elements processed in each loop iteration
             // unroll_factor * #lane per vector
-            const STRIDE: isize = NLANES * NVECS;
+            const STRIDE: usize = NLANES * NVECS;
             // Minimum number of elements required for explicit vectorization.
             // Since we need one extra vector to get the last element,
             // this is #lanes * (unroll + 1) == stride + #lanes
-            const MIN_LEN: isize = NLANES * (NVECS + 1);
+            const MIN_LEN: usize = NLANES * (NVECS + 1);
             // Width of the vector lanes in bytes
             const EWIDTH: i32 = 128 / 8 / NLANES as i32;
             if (n - i) >= MIN_LEN {
@@ -93,7 +93,7 @@ macro_rules! floats_128 {
                     // if some le comparison was false, the mask will have some
                     // bits cleared and this will return 0:
                     if _mm_test_all_ones(transmute(mask)) == 0 {
-                        return false;
+                        return i;
                     }
 
                     current = next3;
@@ -173,7 +173,7 @@ macro_rules! floats_256 {
      $head:ident, $tail:ident) => {
         #[inline]
         #[target_feature(enable = $cpuid)]
-        pub unsafe fn $name(s: &[$id]) -> bool {
+        pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
             use arch::x86::*;
             #[cfg(target_arch = "x86_64")]
@@ -181,22 +181,22 @@ macro_rules! floats_256 {
 
             // The alignment requirements for 256-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 32;
-            let mut i = $head!(s, $id, ALIGNMENT);
+            let mut i: usize = $head!(s, $id, ALIGNMENT);
             // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
-            let n = s.len() as isize;
-            let ap = |o| (s.as_ptr().offset(o)) as *const $id;
+            let n = s.len();
+            let ap = |o| (s.as_ptr().offset(o as isize)) as *const $id;
 
             // Unroll factor: #of 256-bit vectors processed per loop iteration
-            const NVECS: isize = 4;
+            const NVECS: usize = 4;
             // #lanes in each 256-bit vector
-            const NLANES: isize = $nlanes;
+            const NLANES: usize = $nlanes;
             // Stride: number of elements processed in each loop iteration
             // unroll_factor * #lane per vector
-            const STRIDE: isize = NLANES * NVECS;
+            const STRIDE: usize = NLANES * NVECS;
             // Minimum number of elements required for explicit vectorization.
             // Since we need one extra vector to get the last element,
             // this is #lanes * (unroll + 1) == stride + #lanes
-            const MIN_LEN: isize = NLANES * (NVECS + 1);
+            const MIN_LEN: usize = NLANES * (NVECS + 1);
             if (n - i) >= MIN_LEN {
                 while i < n - STRIDE {
                     use ::mem::transmute;
@@ -249,7 +249,7 @@ macro_rules! floats_256 {
                         $set1(transmute($ones)),
                     ) == 0
                     {
-                        return false;
+                        return i;
                     }
 
                     i += STRIDE;
