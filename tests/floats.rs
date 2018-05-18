@@ -196,6 +196,12 @@ fn exphp_tests() {
             check!(vec![2.0, nan, 1.0], $cmp_lt, $cmp_gt);
             check!(vec![2.0, nan, 1.0, 7.0], $cmp_lt, $cmp_gt);
             check!(vec![2.0, nan, 1.0, 0.0], $cmp_lt, $cmp_gt);
+
+            check!(vec![-nan, -1.0, 0.0, 1.0, nan], $cmp_lt, $cmp_gt);
+            check!(vec![nan, -nan, -1.0, 0.0, 1.0], $cmp_lt, $cmp_gt);
+            check!(vec![1.0, nan, -nan, -1.0, 0.0], $cmp_lt, $cmp_gt);
+            check!(vec![0.0, 1.0, nan, -nan, -1.0], $cmp_lt, $cmp_gt);
+            check!(vec![-1.0, 0.0, 1.0, nan, -nan], $cmp_lt, $cmp_gt);
         };
     }
     exphp!(
@@ -211,15 +217,7 @@ fn exphp_tests() {
 
     #[cfg(feature = "unstable")]
     {
-        exphp!(
-            f32,
-            is_sorted::Increasing,
-            is_sorted::Decreasing
-        );
-        exphp!(
-            f64,
-            is_sorted::Increasing,
-            is_sorted::Decreasing
-        );
+        exphp!(f32, is_sorted::Increasing, is_sorted::Decreasing);
+        exphp!(f64, is_sorted::Increasing, is_sorted::Decreasing);
     }
 }

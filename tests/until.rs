@@ -74,7 +74,12 @@ macro_rules! integers {
             {
                 let (p, s) = v.iter().is_sorted_until_by(|a, b| f(a, b));
                 assert!(p.is_none());
-                assert!(s.as_slice().is_empty());
+                assert!(
+                    s.as_slice().is_empty(),
+                    "v: {:?}, s: {:?}",
+                    v,
+                    s.as_slice()
+                );
 
                 use is_sorted::is_sorted_until_by;
                 assert_eq!(

@@ -29,9 +29,8 @@ macro_rules! is_sorted_lt_until_alignment_boundary {
             }
             debug_assert!(
                 i == n - 1
-                    || $s.as_ptr()
-                        .offset(i as isize)
-                        .align_offset($boundary) == 0
+                    || $s.as_ptr().offset(i as isize).align_offset($boundary)
+                        == 0
             );
         }
 
@@ -80,9 +79,8 @@ macro_rules! is_sorted_gt_until_alignment_boundary {
             }
             debug_assert!(
                 i == n - 1
-                    || $s.as_ptr()
-                        .offset(i as isize)
-                        .align_offset($boundary) == 0
+                    || $s.as_ptr().offset(i as isize).align_offset($boundary)
+                        == 0
             );
         }
 

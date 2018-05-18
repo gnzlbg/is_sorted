@@ -11,7 +11,9 @@
 // If the `unstable` feature is enabled, enable nightly-only features:
 #![cfg_attr(
     feature = "unstable",
-    feature(specialization, fn_traits, unboxed_closures, stdsimd, align_offset)
+    feature(
+        specialization, fn_traits, unboxed_closures, stdsimd, align_offset
+    )
 )]
 
 #[allow(unused_imports, unused_macros)]
@@ -209,6 +211,36 @@ where
     true
 }
 
+/// Scalar `is_sorted_by` implementation for slices.
+///
+/// Avoids bound checks.
+#[cfg(feature = "unstable")]
+#[inline]
+fn is_sorted_by_scalar_slice_impl<'a, T, F>(
+    iter: &mut slice::Iter<'a, T>, mut compare: F,
+) -> bool
+where
+    T: PartialOrd,
+    F: FnMut(&&'a T, &&'a T) -> Option<Ordering>,
+{
+    let s = iter.as_slice();
+    if s.len() < 2 {
+        return true;
+    }
+    let mut first = unsafe { s.get_unchecked(0) };
+    for i in 1..s.len() {
+        let second = unsafe { s.get_unchecked(i) };
+        if let Some(ord) = compare(&first, &second) {
+            if ord != Ordering::Greater {
+                first = second;
+                continue;
+            }
+        }
+        return false;
+    }
+    true
+}
+
 // This function dispatch to the appropriate `is_sorted_until_by`
 // implementation.
 #[inline]
@@ -285,6 +317,38 @@ where
     (None, iter)
 }
 
+/// Scalar `is_sorted_until_by` implementation for slices.
+///
+/// Avoids bounds check.
+#[cfg(feature = "unstable")]
+#[inline]
+fn is_sorted_until_by_scalar_slice_impl<'a, T, F>(
+    iter: slice::Iter<'a, T>, mut compare: F,
+) -> (Option<(&'a T, &'a T)>, slice::Iter<'a, T>)
+where
+    T: PartialOrd,
+    F: FnMut(&&'a T, &&'a T) -> Option<Ordering>,
+{
+    let s = iter.as_slice();
+    if s.len() < 2 {
+        return (None, unsafe { s.get_unchecked(s.len()..).iter() });
+    }
+    let mut first = unsafe { s.get_unchecked(0) };
+    for i in 0..s.len() {
+        let second = unsafe { s.get_unchecked(i) };
+        if let Some(ord) = compare(&first, &second) {
+            if ord != Ordering::Greater {
+                first = second;
+                continue;
+            }
+        }
+        return (Some((first, second)), unsafe {
+            s.get_unchecked((i + 1)..).iter()
+        });
+    }
+    return (None, unsafe { s.get_unchecked(s.len()..).iter() });
+}
+
 pub fn is_sorted_until_by<T, F>(slice: &[T], f: F) -> usize
 where
     for<'r, 's> F: FnMut(&'r &T, &'s &T) -> Option<Ordering>,
@@ -299,6 +363,32 @@ where
             debug_assert!(tail.as_slice().is_empty());
             slice.len()
         }
+    }
+}
+
+#[cfg(feature = "unstable")]
+impl<'a, T, F> IsSortedBy<F> for slice::Iter<'a, T>
+where
+    T: PartialOrd,
+    F: FnMut(&&'a T, &&'a T) -> Option<Ordering>,
+{
+    #[inline]
+    default fn is_sorted_by(&mut self, compare: F) -> bool {
+        is_sorted_by_scalar_slice_impl(self, compare)
+    }
+}
+
+#[cfg(feature = "unstable")]
+impl<'a, T, F> IsSortedUntilBy<F> for slice::Iter<'a, T>
+where
+    T: PartialOrd,
+    F: FnMut(&&'a T, &&'a T) -> Option<Ordering>,
+{
+    #[inline]
+    default fn is_sorted_until_by(
+        self, compare: F,
+    ) -> (Option<(&'a T, &'a T)>, Self) {
+        return is_sorted_until_by_scalar_slice_impl(self, compare);
     }
 }
 
@@ -344,7 +434,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
                         }
                     )*;
                     // If feature detection fails use scalar code:
-                    return is_sorted_by_scalar_impl(self, compare);
+                    return is_sorted_by_scalar_slice_impl(self, compare);
                 }
             }
         }
@@ -378,7 +468,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
                             // proceed to call the scalar implementation on it:
                             let s = self.as_slice();
                             let i = $function(s);
-                            return is_sorted_until_by_scalar_impl(s[i..].iter(), compare);
+                            return is_sorted_until_by_scalar_slice_impl(s[i..].iter(), compare);
                         }
                     )*
                 }
@@ -389,11 +479,11 @@ macro_rules! is_sorted_by_slice_iter_x86 {
                         if is_x86_feature_detected!($feature) {
                             let s = self.as_slice();
                             let i =  unsafe { $function(s) };
-                            return is_sorted_until_by_scalar_impl(s[i..].iter(), compare);
+                            return is_sorted_until_by_scalar_slice_impl(s[i..].iter(), compare);
                         }
                     )*;
                     // If feature detection fails use scalar code:
-                    return is_sorted_until_by_scalar_impl(self, compare);
+                    return is_sorted_until_by_scalar_slice_impl(self, compare);
                 }
             }
         }
