@@ -12,7 +12,11 @@
 #![cfg_attr(
     feature = "unstable",
     feature(
-        specialization, fn_traits, unboxed_closures, stdsimd, align_offset
+        specialization,
+        fn_traits,
+        unboxed_closures,
+        stdsimd,
+        align_offset
     )
 )]
 
@@ -53,10 +57,10 @@ pub trait IsSorted: Iterator {
     ///
     /// ```
     /// # use is_sorted::IsSorted;
-    /// let v = vec![0, 1, 2 , 3];
+    /// let v = vec![0, 1, 2, 3];
     /// assert!(v.iter().is_sorted());
     ///
-    /// let v = vec![0, 1, 2 , -1];
+    /// let v = vec![0, 1, 2, -1];
     /// assert!(!v.iter().is_sorted());
     /// ```
     #[inline]
@@ -86,10 +90,10 @@ pub trait IsSorted: Iterator {
     ///     a.partial_cmp(b).map(|v| v.reverse())
     /// }
     ///
-    /// let v = vec![3, 2, 1 , 0];
+    /// let v = vec![3, 2, 1, 0];
     /// assert!(v.iter().is_sorted_by(decr));
     ///
-    /// let v = vec![3, 2, 1 , 4];
+    /// let v = vec![3, 2, 1, 4];
     /// assert!(!v.iter().is_sorted_by(decr));
     /// ```
     #[inline]
@@ -119,7 +123,7 @@ pub trait IsSorted: Iterator {
         B: PartialOrd,
         F: FnMut(&Self::Item) -> B,
     {
-        self.map(|v| key(&v)).is_sorted()
+        IsSorted::is_sorted(&mut self.map(|v| key(&v)))
     }
 
     /// Returns the first unsorted pair of items in the iterator and its tail.
@@ -127,10 +131,8 @@ pub trait IsSorted: Iterator {
     /// ```
     /// # use is_sorted::IsSorted;
     /// let v: &[i32] = &[0, 1, 2, 3, 4, 1, 2, 3];
-    /// let (first, tail) = v.iter().is_sorted_until_by(|a,b| {
-    ///     a.partial_cmp(b)
-    /// });
-    /// assert_eq!(first, Some((&4,&1)));
+    /// let (first, tail) = v.iter().is_sorted_until_by(|a, b| a.partial_cmp(b));
+    /// assert_eq!(first, Some((&4, &1)));
     /// assert_eq!(tail.as_slice(), &[2, 3]);
     /// ```
     #[inline]

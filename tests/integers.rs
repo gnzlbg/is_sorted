@@ -59,31 +59,31 @@ macro_rules! ints {
 
             let mut x: [$id; 0] = [];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [0 as $id];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [$id::min_value(), $id::max_value()];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [1 as $id, 2, 3, 4];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [1 as $id, 3, 2, 4];
             rev!($cmp_t, x);
-            assert!(!x.iter().is_sorted_by($cmp_t!()));
+            assert!(!IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [4 as $id, 3, 2, 1];
             rev!($cmp_t, x);
-            assert!(!x.iter().is_sorted_by($cmp_t!()));
+            assert!(!IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [4 as $id, 4, 4, 4];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let min = $id::min_value();
             let max = $id::max_value();
@@ -96,7 +96,10 @@ macro_rules! ints {
                 v.push(max);
             }
             rev!($cmp_t, v);
-            assert!(v.as_slice().iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(
+                &mut v.as_slice().iter(),
+                $cmp_t!()
+            ));
 
             let mut v = Vec::new();
             for _ in 0..4 {
@@ -106,7 +109,10 @@ macro_rules! ints {
                 v.push(max);
             }
             rev!($cmp_t, v);
-            assert!(v.as_slice().iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(
+                &mut v.as_slice().iter(),
+                $cmp_t!()
+            ));
 
             macro_rules! min_max {
                 (cmp_lt,$min_: ident,$max_: ident) => {{
@@ -124,26 +130,38 @@ macro_rules! ints {
                 vec.sort();
                 rev!($cmp_t, vec);
                 assert!(
-                    vec.as_slice().iter().is_sorted_by($cmp_t!()),
+                    IsSorted::is_sorted_by(
+                        &mut vec.as_slice().iter(),
+                        $cmp_t!()
+                    ),
                     "is_sorted0: {:?}",
                     vec
                 );
                 if i > 4 {
                     vec.push(min);
                     assert!(
-                        !vec.as_slice().iter().is_sorted_by($cmp_t!()),
+                        !IsSorted::is_sorted_by(
+                            &mut vec.as_slice().iter(),
+                            $cmp_t!()
+                        ),
                         "!is_sorted1: {:?}",
                         vec
                     );
                     vec.insert(i / 3 * 2, min);
                     assert!(
-                        !vec.as_slice().iter().is_sorted_by($cmp_t!()),
+                        !IsSorted::is_sorted_by(
+                            &mut vec.as_slice().iter(),
+                            $cmp_t!()
+                        ),
                         "!is_sorted2: {:?}",
                         vec
                     );
                     vec.insert(0, max);
                     assert!(
-                        !vec.as_slice().iter().is_sorted_by($cmp_t!()),
+                        !IsSorted::is_sorted_by(
+                            &mut vec.as_slice().iter(),
+                            $cmp_t!()
+                        ),
                         "!is_sorted3: {:?}",
                         vec
                     );
@@ -160,39 +178,39 @@ macro_rules! ints {
                 rev!($cmp_t, v);
                 {
                     let s: &[$id] = v.as_slice();
-                    assert!(s.iter().is_sorted_by($cmp_t!()));
+                    assert!(IsSorted::is_sorted_by(&mut s.iter(), $cmp_t!()));
                 }
 
                 v.push(min);
                 {
                     let s: &[$id] = v.as_slice();
-                    assert!(!s.iter().is_sorted_by($cmp_t!()));
+                    assert!(!IsSorted::is_sorted_by(&mut s.iter(), $cmp_t!()));
                 }
                 for i in &mut v {
                     *i = 42;
                 }
                 {
                     let s: &[$id] = v.as_slice();
-                    assert!(s.iter().is_sorted_by($cmp_t!()));
+                    assert!(IsSorted::is_sorted_by(&mut s.iter(), $cmp_t!()));
                 }
                 for i in &mut v {
                     *i = max;
                 }
                 {
                     let s: &[$id] = v.as_slice();
-                    assert!(s.iter().is_sorted_by($cmp_t!()));
+                    assert!(IsSorted::is_sorted_by(&mut s.iter(), $cmp_t!()));
                 }
                 v.push(min);
                 {
                     let s: &[$id] = v.as_slice();
-                    assert!(!s.iter().is_sorted_by($cmp_t!()));
+                    assert!(!IsSorted::is_sorted_by(&mut s.iter(), $cmp_t!()));
                 }
                 for i in &mut v {
                     *i = min;
                 }
                 {
                     let s: &[$id] = v.as_slice();
-                    assert!(s.iter().is_sorted_by($cmp_t!()));
+                    assert!(IsSorted::is_sorted_by(&mut s.iter(), $cmp_t!()));
                 }
                 let mut v = Vec::new();
                 for _ in 0..n {
@@ -201,7 +219,10 @@ macro_rules! ints {
                 for _ in 0..n {
                     v.push(max);
                 }
-                assert!(v.as_slice().iter().is_sorted_by($cmp_t!()));
+                assert!(IsSorted::is_sorted_by(
+                    &mut v.as_slice().iter(),
+                    $cmp_t!()
+                ));
             }
         }
     };
@@ -243,7 +264,7 @@ fn x86_failures() {
         25976, 27148, 27280, 27976, 28195, 28496, 29367, 29714, 29741, 30975,
         31389, 31621, 31641, 31730, 31732,
     ];
-    assert!(v.iter().is_sorted());
+    assert!(IsSorted::is_sorted(&mut v.iter()));
 
     #[cfg_attr(rustfmt, skip)]
     let v: Vec<i32> = vec![
@@ -313,7 +334,7 @@ fn x86_failures() {
         1919676348,
         1953567150,
     ];
-    assert!(v.iter().is_sorted());
+    assert!(IsSorted::is_sorted(&mut v.iter()));
 
     #[cfg_attr(rustfmt, skip)]
     let v: Vec<i8> = vec![
@@ -329,5 +350,5 @@ fn x86_failures() {
         78, 80, 81, 81, 82, 84, 87, 88, 90, 91, 93, 93, 95, 97, 98, 99, 102,
         102, 104, 106, 106, 109, 112, 113, 115, 115, 117, 124, 125,
     ];
-    assert!(v.iter().is_sorted());
+    assert!(IsSorted::is_sorted(&mut v.iter()));
 }

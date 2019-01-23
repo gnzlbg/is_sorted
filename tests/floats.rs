@@ -60,38 +60,38 @@ macro_rules! test_float {
 
             let mut x = [1., 2., 3., 4.];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x: [$id; 0] = [];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [0 as $id];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let max = ::std::$id::INFINITY;
             let min = -max;
 
             let mut x = [min, max];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [1 as $id, 2., 3., 4.];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [1 as $id, 3., 2., 4.];
             rev!($cmp_t, x);
-            assert!(!x.iter().is_sorted_by($cmp_t!()));
+            assert!(!IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [4 as $id, 3., 2., 1.];
             rev!($cmp_t, x);
-            assert!(!x.iter().is_sorted_by($cmp_t!()));
+            assert!(!IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut x = [4 as $id, 4., 4., 4.];
             rev!($cmp_t, x);
-            assert!(x.iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(&mut x.iter(), $cmp_t!()));
 
             let mut v = Vec::new();
             for _ in 0..2 {
@@ -101,7 +101,10 @@ macro_rules! test_float {
                 v.push(max);
             }
             rev!($cmp_t, v);
-            assert!(v.as_slice().iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(
+                &mut v.as_slice().iter(),
+                $cmp_t!()
+            ));
 
             let mut v = Vec::new();
             for _ in 0..4 {
@@ -111,7 +114,10 @@ macro_rules! test_float {
                 v.push(max);
             }
             rev!($cmp_t, v);
-            assert!(v.as_slice().iter().is_sorted_by($cmp_t!()));
+            assert!(IsSorted::is_sorted_by(
+                &mut v.as_slice().iter(),
+                $cmp_t!()
+            ));
 
             macro_rules! min_max {
                 (cmp_lt,$min_: ident,$max_: ident) => {{
@@ -169,9 +175,17 @@ fn exphp_tests() {
         ($vec:expr, $cmp_lt:expr, $cmp_gt:expr) => {
             let mut v = $vec;
             // Test the small vector
-            assert!(!v.iter().is_sorted_by($cmp_lt), "{:?}", v);
+            assert!(
+                !IsSorted::is_sorted_by(&mut v.iter(), $cmp_lt),
+                "{:?}",
+                v
+            );
             v.reverse();
-            assert!(!v.iter().is_sorted_by($cmp_gt), "{:?}", v);
+            assert!(
+                !IsSorted::is_sorted_by(&mut v.iter(), $cmp_gt),
+                "{:?}",
+                v
+            );
             v.reverse();
             // Test a large vector with the pattern in the middle
             let mut o = Vec::new();
@@ -182,9 +196,9 @@ fn exphp_tests() {
             for _ in 0..100 {
                 o.push(10.0);
             }
-            assert!(!o.iter().is_sorted_by($cmp_lt));
+            assert!(!IsSorted::is_sorted_by(&mut o.iter(), $cmp_lt));
             o.reverse();
-            assert!(!o.iter().is_sorted_by($cmp_gt));
+            assert!(!IsSorted::is_sorted_by(&mut o.iter(), $cmp_gt));
         };
     }
 
@@ -204,16 +218,12 @@ fn exphp_tests() {
             check!(vec![-1.0, 0.0, 1.0, nan, -nan], $cmp_lt, $cmp_gt);
         };
     }
-    exphp!(
-        f32,
-        |a, b| a.partial_cmp(b),
-        |a, b| a.partial_cmp(b).map(|v| v.reverse())
-    );
-    exphp!(
-        f64,
-        |a, b| a.partial_cmp(b),
-        |a, b| a.partial_cmp(b).map(|v| v.reverse())
-    );
+    exphp!(f32, |a, b| a.partial_cmp(b), |a, b| a
+        .partial_cmp(b)
+        .map(|v| v.reverse()));
+    exphp!(f64, |a, b| a.partial_cmp(b), |a, b| a
+        .partial_cmp(b)
+        .map(|v| v.reverse()));
 
     #[cfg(feature = "unstable")]
     {
