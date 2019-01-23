@@ -95,7 +95,7 @@ macro_rules! sorted_lt {
             b.iter(|| {
                 let s: &[$ty] = v.as_slice();
                 black_box(s.as_ptr());
-                assert!(black_box(s.iter().is_sorted()));
+                assert!(black_box(IsSorted::is_sorted(&mut s.iter())));
             });
         }
     };
@@ -123,9 +123,10 @@ macro_rules! sorted_gt {
                 }
                 #[cfg(not(feature = "unstable"))]
                 {
-                    assert!(black_box(s.iter().is_sorted_by(|a, b| {
-                        a.partial_cmp(b).map(|v| v.reverse())
-                    }),));
+                    assert!(black_box(IsSorted::is_sorted_by(
+                        &mut s.iter(),
+                        |a, b| a.partial_cmp(b).map(|v| v.reverse())
+                    ),));
                 }
             });
         }

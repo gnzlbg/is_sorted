@@ -36,9 +36,9 @@ macro_rules! integers {
                 for<'r, 's> F:
                     FnMut(&'r $id, &'s $id) -> Option<Ordering> + Copy,
             {
-                assert!(v.iter().is_sorted_by(|a, b| f(a, b)));
+                assert!(IsSorted::is_sorted_by(&mut v.iter(), |a, b| f(a, b)));
                 v.insert(idx, $id::min_value());
-                while v.iter().is_sorted_by(|a, b| f(a, b)) {
+                while IsSorted::is_sorted_by(&mut v.iter(), |a, b| f(a, b)) {
                     let mut nv = random_vec(v.len() - 1, f);
                     nv.insert(idx, $id::min_value());
                     *v = nv;
