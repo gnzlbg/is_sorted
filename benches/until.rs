@@ -98,21 +98,19 @@ macro_rules! sorted_lt {
                 #[cfg(feature = "unstable")]
                 {
                     use is_sorted::Increasing;
-                    assert!(
-                        black_box(s.iter().is_sorted_until_by(Increasing))
-                            .0
-                            .is_none()
-                    );
+                    assert!(black_box(
+                        s.iter().is_sorted_until_by(Increasing)
+                    )
+                    .0
+                    .is_none());
                 }
                 #[cfg(not(feature = "unstable"))]
                 {
-                    assert!(
-                        black_box(
-                            s.iter()
-                                .is_sorted_until_by(|a, b| a.partial_cmp(b))
-                        ).0
-                            .is_none()
-                    );
+                    assert!(black_box(
+                        s.iter().is_sorted_until_by(|a, b| a.partial_cmp(b))
+                    )
+                    .0
+                    .is_none());
                 }
             });
         }
@@ -137,20 +135,19 @@ macro_rules! sorted_gt {
                 #[cfg(feature = "unstable")]
                 {
                     use is_sorted::Decreasing;
-                    assert!(
-                        black_box(s.iter().is_sorted_until_by(Decreasing))
-                            .0
-                            .is_none()
-                    );
+                    assert!(black_box(
+                        s.iter().is_sorted_until_by(Decreasing)
+                    )
+                    .0
+                    .is_none());
                 }
                 #[cfg(not(feature = "unstable"))]
                 {
-                    assert!(
-                        black_box(s.iter().is_sorted_until_by(|a, b| {
-                            a.partial_cmp(b).map(|v| v.reverse())
-                        })).0
-                            .is_none()
-                    );
+                    assert!(black_box(s.iter().is_sorted_until_by(|a, b| {
+                        a.partial_cmp(b).map(|v| v.reverse())
+                    }))
+                    .0
+                    .is_none());
                 }
             });
         }

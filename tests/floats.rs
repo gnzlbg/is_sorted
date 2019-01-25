@@ -128,38 +128,38 @@ macro_rules! test_float {
                 }};
             }
             /*
-                    let (min, max) = min_max!($cmp_t, min, max);
+            let (min, max) = min_max!($cmp_t, min, max);
 
-                    for i in 0..1_000 {
-                        let mut vec: Vec<$id> = random_vec(i);
-                        vec.sort_by($cmp_t!());
-                        assert!(
-                            vec.as_slice().iter().is_sorted_by($cmp_t!()),
-                            "is_sorted0: {:?}",
-                            vec
-                        );
-                        if i > 4 {
-                            vec.push(min);
-                            assert!(
-                                !vec.as_slice().iter().is_sorted_by($cmp_t!()),
-                                "!is_sorted1: {:?}",
-                                vec
-                            );
-                            vec.insert(i / 3 * 2, min);
-                            assert!(
-                                !vec.as_slice().iter().is_sorted_by($cmp_t!()),
-                                "!is_sorted2: {:?}",
-                                vec
-                            );
-                            vec.insert(0, max);
-                            assert!(
-                                !vec.as_slice().iter().is_sorted_by($cmp_t!()),
-                                "!is_sorted3: {:?}",
-                                vec
-                            );
-                        }
-                    }
-                    */
+            for i in 0..1_000 {
+                let mut vec: Vec<$id> = random_vec(i);
+                vec.sort_by($cmp_t!());
+                assert!(
+                    vec.as_slice().iter().is_sorted_by($cmp_t!()),
+                    "is_sorted0: {:?}",
+                    vec
+                );
+                if i > 4 {
+                    vec.push(min);
+                    assert!(
+                        !vec.as_slice().iter().is_sorted_by($cmp_t!()),
+                        "!is_sorted1: {:?}",
+                        vec
+                    );
+                    vec.insert(i / 3 * 2, min);
+                    assert!(
+                        !vec.as_slice().iter().is_sorted_by($cmp_t!()),
+                        "!is_sorted2: {:?}",
+                        vec
+                    );
+                    vec.insert(0, max);
+                    assert!(
+                        !vec.as_slice().iter().is_sorted_by($cmp_t!()),
+                        "!is_sorted3: {:?}",
+                        vec
+                    );
+                }
+            }
+            */
         }
     };
 }

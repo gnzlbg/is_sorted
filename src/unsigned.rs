@@ -15,14 +15,15 @@ macro_rules! unsigned_128 {
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
-            use ::arch::x86::*;
+            use arch::x86::*;
             #[cfg(target_arch = "x86_64")]
-            use ::arch::x86_64::*;
+            use arch::x86_64::*;
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 16;
             let mut i: usize = $head!(s, $id, ALIGNMENT);
-            // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
+            // ^^^^^^ i is the index of the first element aligned to an
+            // ALIGNMENT boundary
             let n = s.len();
             let ap = |o| (s.as_ptr().offset(o as isize)) as *const __m128i;
 
@@ -54,13 +55,13 @@ macro_rules! unsigned_128 {
 
                     // a <= b <=> a == minu(a,b):
                     // [a0 <= a1,..,a3 <= a4]
-                    let mask0 = $cmpeq(current,$minu(current, compare0),);
+                    let mask0 = $cmpeq(current, $minu(current, compare0));
                     // [a4 <= a5,..,a7 <= a8]
-                    let mask1 =$cmpeq(next0, $minu(next0, compare1));
+                    let mask1 = $cmpeq(next0, $minu(next0, compare1));
                     // [a8 <= a9,..,a11 <= a12]
-                    let mask2 =$cmpeq(next1, $minu(next1, compare2));
+                    let mask2 = $cmpeq(next1, $minu(next1, compare2));
                     // [a12 <= a13,..,a15 <= a16]
-                    let mask3 =$cmpeq(next2, $minu(next2, compare3));
+                    let mask3 = $cmpeq(next2, $minu(next2, compare3));
 
                     // mask = mask0 && mask1 && mask2 && mask3
                     let mask = _mm_and_si128(
@@ -81,7 +82,7 @@ macro_rules! unsigned_128 {
 
             $tail!(s, n, i)
         }
-    }
+    };
 }
 
 pub mod sse41 {
@@ -174,14 +175,15 @@ macro_rules! unsigned_256 {
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
-            use ::arch::x86::*;
+            use arch::x86::*;
             #[cfg(target_arch = "x86_64")]
-            use ::arch::x86_64::*;
+            use arch::x86_64::*;
 
             // The alignment requirements for 256-bit wide vectors is 32 bytes:
             const ALIGNMENT: usize = 32;
             let mut i: usize = $head!(s, $id, ALIGNMENT);
-            // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
+            // ^^^^^^ i is the index of the first element aligned to an
+            // ALIGNMENT boundary
             let n = s.len();
             let ap = |o| (s.as_ptr().offset(o as isize)) as *const __m256i;
 
@@ -210,13 +212,13 @@ macro_rules! unsigned_256 {
 
                     // a <= b <=> a == minu(a,b):
                     // [a0 <= a1,..,a7 <= a8]
-                    let mask0 = $cmpeq(current,$minu(current, compare0));
+                    let mask0 = $cmpeq(current, $minu(current, compare0));
                     // [a8 <= a9,..,a15 <= a16]
-                    let mask1 = $cmpeq(next0,$minu(next0, compare1));
+                    let mask1 = $cmpeq(next0, $minu(next0, compare1));
                     // [a16 <= a17,.., a23 <= a24]
-                    let mask2 = $cmpeq(next1,$minu(next1, compare2));
+                    let mask2 = $cmpeq(next1, $minu(next1, compare2));
                     // [a24 <= a25,..,a31 <= a32]
-                    let mask3 = $cmpeq(next2,$minu(next2, compare3));
+                    let mask3 = $cmpeq(next2, $minu(next2, compare3));
 
                     // mask = mask0 && mask1 && mask2 && mask3
                     let mask = _mm256_and_si256(
@@ -235,7 +237,7 @@ macro_rules! unsigned_256 {
 
             $tail!(s, n, i)
         }
-    }
+    };
 }
 
 pub mod avx2 {

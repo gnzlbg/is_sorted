@@ -182,7 +182,8 @@ macro_rules! floats_256 {
             // The alignment requirements for 256-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 32;
             let mut i: usize = $head!(s, $id, ALIGNMENT);
-            // ^^^^^^ i is the index of the first element aligned to an ALIGNMENT boundary
+            // ^^^^^^ i is the index of the first element aligned to an
+            // ALIGNMENT boundary
             let n = s.len();
             let ap = |o| (s.as_ptr().offset(o as isize)) as *const $id;
 
@@ -199,9 +200,9 @@ macro_rules! floats_256 {
             const MIN_LEN: usize = NLANES * (NVECS + 1);
             if (n - i) >= MIN_LEN {
                 while i < n - STRIDE {
-                    use ::mem::transmute;
+                    use mem::transmute;
                     let current = $load(ap(i + 0 * NLANES)); // [a0,..,a3]
-                    // == 16 | the last vector of current is the first of next
+                                                             // == 16 | the last vector of current is the first of next
                     let next0 = $load(ap(i + 1 * NLANES)); // [a4,..,a7]
                     let next1 = $load(ap(i + 2 * NLANES)); // [a8,..,a11]
                     let next2 = $load(ap(i + 3 * NLANES)); // [a12,..,a15]
@@ -212,43 +213,20 @@ macro_rules! floats_256 {
                     let compare3 = $loadu(ap(i + 3 * NLANES + 1)); // [a25,..,a32]
 
                     // [a0 <= a1,..,a3 <= a4]
-                    let mask0 = $cmp(
-                        current,
-                        transmute(compare0),
-                        $cmp_t,
-                    );
+                    let mask0 = $cmp(current, transmute(compare0), $cmp_t);
                     // [a4 <= a5,..,a7 <= a8]
-                    let mask1 = $cmp(
-                        next0,
-                        transmute(compare1),
-                        $cmp_t,
-                    );
+                    let mask1 = $cmp(next0, transmute(compare1), $cmp_t);
                     // [a8 <= a9,..,a11 <= a12]
-                    let mask2 = $cmp(
-                        next1,
-                        transmute(compare2),
-                        $cmp_t,
-                    );
+                    let mask2 = $cmp(next1, transmute(compare2), $cmp_t);
                     // [a12 <= a13,..,a15 <= a16]
-                    let mask3 = $cmp(
-                        next2,
-                        transmute(compare3),
-                        $cmp_t,
-                    );
+                    let mask3 = $cmp(next2, transmute(compare3), $cmp_t);
 
                     // mask = mask0 | mask1 | mask2 | mask3
-                    let mask = $and(
-                        $and(mask0, mask1),
-                        $and(mask2, mask3),
-                    );
+                    let mask = $and($and(mask0, mask1), $and(mask2, mask3));
 
                     // if some le comparison was false the mask won't have all
                     // bits set and testc returns 0:
-                    if $testc(
-                        mask,
-                        $set1(transmute($ones)),
-                    ) == 0
-                    {
+                    if $testc(mask, $set1(transmute($ones))) == 0 {
                         return i;
                     }
 
@@ -258,7 +236,7 @@ macro_rules! floats_256 {
 
             $tail!(s, n, i)
         }
-    }
+    };
 }
 
 pub mod avx {
