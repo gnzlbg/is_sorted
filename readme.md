@@ -2,6 +2,9 @@
 
 [![crates.io version][crate-shield]][crate] [![Travis build status][travis-shield]][travis] [![Appveyor build status][appveyor-shield]][appveyor] [![Docs][docs-shield]][docs] [![License][license-shield]][license]
 
+> **Note:** This is now exported by Rust's `core` library, e.g., see [`Iterator`](https://doc.rust-lang.org/nightly/core/iter/trait.Iterator.html?search=#method.is_sorted). The implementations in
+this crate remain up to 10x faster than libcore because this crate can make use of features that
+libcore cannot use yet (we'll fix that eventually). 
 
 This crate extends the `Iterator` trait with the `is_sorted`, `is_sorted_by`,
 and `is_sorted_by_key` methods that check whether the iterator elements are
