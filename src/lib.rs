@@ -58,10 +58,10 @@ pub trait IsSorted: Iterator {
     /// ```
     /// # use is_sorted::IsSorted;
     /// let v = vec![0, 1, 2, 3];
-    /// assert!(v.iter().is_sorted());
+    /// assert!(IsSorted::is_sorted(&mut v.iter()));
     ///
     /// let v = vec![0, 1, 2, -1];
-    /// assert!(!v.iter().is_sorted());
+    /// assert!(!IsSorted::is_sorted(&mut v.iter()));
     /// ```
     #[inline]
     fn is_sorted(&mut self) -> bool
@@ -83,18 +83,18 @@ pub trait IsSorted: Iterator {
     /// are sorted according to the `compare` function.
     ///
     /// ```
-    /// # use is_sorted::IsSorted;
     /// # use std::cmp::Ordering;
+    /// # use is_sorted::IsSorted;
     /// // Is an iterator sorted in decreasing order?
     /// fn decr<T: PartialOrd>(a: &T, b: &T) -> Option<Ordering> {
     ///     a.partial_cmp(b).map(|v| v.reverse())
     /// }
     ///
     /// let v = vec![3, 2, 1, 0];
-    /// assert!(v.iter().is_sorted_by(decr));
+    /// assert!(IsSorted::is_sorted_by(&mut v.iter(), decr));
     ///
     /// let v = vec![3, 2, 1, 4];
-    /// assert!(!v.iter().is_sorted_by(decr));
+    /// assert!(!IsSorted::is_sorted_by(&mut v.iter(), decr));
     /// ```
     #[inline]
     fn is_sorted_by<F>(&mut self, compare: F) -> bool
@@ -111,10 +111,10 @@ pub trait IsSorted: Iterator {
     /// ```
     /// # use is_sorted::IsSorted;
     /// let v = vec![0_i32, -1, 2, -3];
-    /// assert!(v.iter().is_sorted_by_key(|v| v.abs()));
+    /// assert!(IsSorted::is_sorted_by_key(&mut v.iter(), |v| v.abs()));
     ///
     /// let v = vec![0_i32, -1, 2, 0];
-    /// assert!(!v.iter().is_sorted_by_key(|v| v.abs()));
+    /// assert!(!IsSorted::is_sorted_by_key(&mut v.iter(), |v| v.abs()));
     /// ```
     #[inline]
     fn is_sorted_by_key<F, B>(&mut self, mut key: F) -> bool
