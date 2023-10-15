@@ -6,10 +6,10 @@ description = "Is an Iterator sorted?"
 documentation = "https://docs.rs/crate/is_sorted/"
 homepage = "https://github.com/gnzlbg/is_sorted"
 repository = "https://github.com/gnzlbg/is_sorted"
-readme = "readme.md"
+readme = "README.md"
 keywords = ["algorithm", "simd", "sort"]
 categories = ["algorithms", "no-std"]
-license = "MIT/Apache-2.0"
+license = "Apache-2.0 OR MIT"
 edition = "2021"
 
 [badges]
