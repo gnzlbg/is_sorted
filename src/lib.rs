@@ -29,7 +29,7 @@ use std::cmp;
 #[cfg(feature = "unstable")]
 use std::{arch, mem, slice};
 
-use cmp::Ordering;
+use crate::cmp::Ordering;
 
 #[cfg(feature = "unstable")]
 mod ord;
@@ -137,7 +137,8 @@ pub trait IsSorted: Iterator {
     /// ```
     #[inline]
     fn is_sorted_until_by<F>(
-        self, compare: F,
+        self,
+        compare: F,
     ) -> (Option<(Self::Item, Self::Item)>, Self)
     where
         Self: Sized,
@@ -219,7 +220,8 @@ where
 #[cfg(feature = "unstable")]
 #[inline]
 fn is_sorted_by_scalar_slice_impl<'a, T, F>(
-    iter: &mut slice::Iter<'a, T>, mut compare: F,
+    iter: &mut slice::Iter<'a, T>,
+    mut compare: F,
 ) -> bool
 where
     T: PartialOrd,
@@ -247,7 +249,8 @@ where
 // implementation.
 #[inline]
 fn is_sorted_until_by_impl<I, F>(
-    iter: I, compare: F,
+    iter: I,
+    compare: F,
 ) -> (Option<(I::Item, I::Item)>, I)
 where
     I: Iterator,
@@ -263,7 +266,8 @@ where
     F: FnMut(&Self::Item, &Self::Item) -> Option<Ordering>,
 {
     fn is_sorted_until_by(
-        self, compare: F,
+        self,
+        compare: F,
     ) -> (Option<(Self::Item, Self::Item)>, Self);
 }
 
@@ -277,7 +281,8 @@ where
     #[inline]
     #[cfg(feature = "unstable")]
     default fn is_sorted_until_by(
-        self, compare: F,
+        self,
+        compare: F,
     ) -> (Option<(Self::Item, Self::Item)>, Self) {
         is_sorted_until_by_scalar_impl(self, compare)
     }
@@ -285,7 +290,8 @@ where
     #[inline]
     #[cfg(not(feature = "unstable"))]
     fn is_sorted_until_by(
-        self, compare: F,
+        self,
+        compare: F,
     ) -> (Option<(Self::Item, Self::Item)>, Self) {
         is_sorted_until_by_scalar_impl(self, compare)
     }
@@ -294,7 +300,8 @@ where
 /// Scalar `is_sorted_until_by` implementation.
 #[inline]
 fn is_sorted_until_by_scalar_impl<I, F>(
-    mut iter: I, mut compare: F,
+    mut iter: I,
+    mut compare: F,
 ) -> (Option<(I::Item, I::Item)>, I)
 where
     I: Iterator,
@@ -325,7 +332,8 @@ where
 #[cfg(feature = "unstable")]
 #[inline]
 fn is_sorted_until_by_scalar_slice_impl<'a, T, F>(
-    iter: slice::Iter<'a, T>, mut compare: F,
+    iter: slice::Iter<'a, T>,
+    mut compare: F,
 ) -> (Option<(&'a T, &'a T)>, slice::Iter<'a, T>)
 where
     T: PartialOrd,
@@ -388,7 +396,8 @@ where
 {
     #[inline]
     default fn is_sorted_until_by(
-        self, compare: F,
+        self,
+        compare: F,
     ) -> (Option<(&'a T, &'a T)>, Self) {
         return is_sorted_until_by_scalar_slice_impl(self, compare);
     }

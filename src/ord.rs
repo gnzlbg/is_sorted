@@ -10,7 +10,8 @@ pub mod types {
     impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)> for Increasing {
         type Output = Option<Ordering>;
         extern "rust-call" fn call_once(
-            self, arg: (&'a T, &'b T),
+            self,
+            arg: (&'a T, &'b T),
         ) -> Self::Output {
             arg.0.partial_cmp(arg.1)
         }
@@ -18,7 +19,8 @@ pub mod types {
 
     impl<'a, 'b, T: PartialOrd> FnMut<(&'a T, &'b T)> for Increasing {
         extern "rust-call" fn call_mut(
-            &mut self, arg: (&'a T, &'b T),
+            &mut self,
+            arg: (&'a T, &'b T),
         ) -> Self::Output {
             arg.0.partial_cmp(arg.1)
         }
@@ -30,7 +32,8 @@ pub mod types {
     impl<'a, 'b, T: PartialOrd> FnOnce<(&'a T, &'b T)> for Decreasing {
         type Output = Option<Ordering>;
         extern "rust-call" fn call_once(
-            self, arg: (&'a T, &'b T),
+            self,
+            arg: (&'a T, &'b T),
         ) -> Self::Output {
             arg.0.partial_cmp(arg.1).map(|v| v.reverse())
         }
@@ -38,7 +41,8 @@ pub mod types {
 
     impl<'a, 'b, T: PartialOrd> FnMut<(&'a T, &'b T)> for Decreasing {
         extern "rust-call" fn call_mut(
-            &mut self, arg: (&'a T, &'b T),
+            &mut self,
+            arg: (&'a T, &'b T),
         ) -> Self::Output {
             arg.0.partial_cmp(arg.1).map(|v| v.reverse())
         }

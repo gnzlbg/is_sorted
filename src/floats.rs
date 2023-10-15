@@ -328,5 +328,4 @@ pub mod avx {
         is_sorted_gt_until_alignment_boundary,
         is_sorted_gt_tail
     );
-
 }

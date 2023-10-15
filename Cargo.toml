@@ -10,6 +10,7 @@ readme = "readme.md"
 keywords = ["algorithm", "simd", "sort"]
 categories = ["algorithms", "no-std"]
 license = "MIT/Apache-2.0"
+edition = "2021"
 
 [badges]
 appveyor = { repository = "gnzlbg/is_sorted" }
@@ -25,7 +26,7 @@ unstable = []
 use_std = []
 
 [dev-dependencies]
-rand = "0.4.*"
+rand = "0.8.*"
 
 [profile.bench]
 opt-level = 3

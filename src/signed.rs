@@ -404,5 +404,4 @@ pub mod avx2 {
         is_sorted_gt_until_alignment_boundary,
         is_sorted_gt_tail
     );
-
 }

@@ -20,7 +20,7 @@ macro_rules! from_usize_prim {
         impl Rnd for $id {
             fn rnd() -> Self {
                 let mut rng = thread_rng();
-                rng.gen_range(Self::min_value(), Self::max_value())
+                rng.gen_range(Self::min_value()..Self::max_value())
             }
         }
     };
@@ -30,7 +30,7 @@ macro_rules! from_usize_prim_f {
         impl Rnd for $id {
             fn rnd() -> Self {
                 let mut rng = thread_rng();
-                rng.gen_range(0. as $id, 1. as $id)
+                rng.gen_range(0. as $id..1. as $id)
             }
         }
     };
