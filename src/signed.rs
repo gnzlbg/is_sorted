@@ -1,6 +1,8 @@
 //! Algorithms for signed integers
 #![allow(unused_attributes)]
 
+//use std::{arch, mem, slice};
+
 /// 128-bit-wide algorithm for slices of signed integers
 ///
 /// This algorithm has been adapted from HeroicKatora's reddit post:
@@ -19,9 +21,9 @@ macro_rules! signed_128 {
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
-            use arch::x86::*;
+            use crate::arch::x86::*;
             #[cfg(target_arch = "x86_64")]
-            use arch::x86_64::*;
+            use crate::arch::x86_64::*;
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes
             const ALIGNMENT: usize = 16;
@@ -106,9 +108,9 @@ pub mod sse42 {
     );
 
     #[cfg(target_arch = "x86")]
-    use arch::x86::*;
+    use crate::arch::x86::*;
     #[cfg(target_arch = "x86_64")]
-    use arch::x86_64::*;
+    use crate::arch::x86_64::*;
 
     #[target_feature(enable = "sse4.2")]
     unsafe fn _mm_cmplt_epi64(x: __m128i, y: __m128i) -> __m128i {
@@ -209,9 +211,9 @@ macro_rules! signed_256 {
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
-            use arch::x86::*;
+            use crate::arch::x86::*;
             #[cfg(target_arch = "x86_64")]
-            use arch::x86_64::*;
+            use crate::arch::x86_64::*;
 
             // The alignment requirements for 256-bit wide vectors is 32 bytes
             const ALIGNMENT: usize = 32;
@@ -321,9 +323,9 @@ pub mod avx2 {
     );
 
     #[cfg(target_arch = "x86")]
-    use arch::x86::*;
+    use crate::arch::x86::*;
     #[cfg(target_arch = "x86_64")]
-    use arch::x86_64::*;
+    use crate::arch::x86_64::*;
 
     #[target_feature(enable = "avx2")]
     unsafe fn _mm256_cmplt_epi64(x: __m256i, y: __m256i) -> __m256i {
@@ -404,5 +406,4 @@ pub mod avx2 {
         is_sorted_gt_until_alignment_boundary,
         is_sorted_gt_tail
     );
-
 }

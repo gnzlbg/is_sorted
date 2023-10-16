@@ -52,7 +52,7 @@ macro_rules! test_float {
                 let mut vec = Vec::with_capacity(x);
                 let mut rng = thread_rng();
                 for _ in 0..x {
-                    let val: $id = rng.gen_range(0. as $id, 1. as $id);
+                    let val: $id = rng.gen_range(0. as $id..1. as $id);
                     vec.push(val);
                 }
                 vec

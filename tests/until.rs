@@ -23,7 +23,7 @@ macro_rules! integers {
                 let mut rng = thread_rng();
                 for _ in 0..x {
                     let val: $id =
-                        rng.gen_range($id::min_value(), $id::max_value());
+                        rng.gen_range($id::min_value()..$id::max_value());
                     vec.push(val);
                 }
 
