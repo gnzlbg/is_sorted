@@ -1,35 +1,28 @@
-//! Extends `Iterator` with three algorithms, `is_sorted`, `is_sorted_by`, and
-//! `is_sorted_by_key` that check whether the elements of an `Iterator` are
-//! sorted in `O(N)` time and `O(1)` space.
+//! Extends [`Iterator`] with three algorithms,
+//! [`is_sorted`](IsSorted::is_sorted),
+//! [`is_sorted_by`](IsSorted::is_sorted_by), and
+//! [`is_sorted_by_key`](IsSorted::is_sorted_by_key) that check whether the
+//! elements of an `Iterator` are sorted in `O(N)` time and `O(1)` space.
 //!
 //! To enable explicitly-vectorized implementations enable the `unstable`
 //! nightly-only feature and use the typed comparators: `Increasing` and
 //! `Decreasing`.
 
-// If the `use_std` feature is not enable, compile for `no_std`:
-#![cfg_attr(not(feature = "use_std"), no_std)]
+// If the `std` feature is not enabled, compile for `no_std`:
+#![cfg_attr(not(feature = "std"), no_std)]
 // If the `unstable` feature is enabled, enable nightly-only features:
 #![cfg_attr(
     feature = "unstable",
-    feature(
-        specialization,
-        fn_traits,
-        unboxed_closures,
-        stdsimd,
-        align_offset
-    )
+    feature(specialization, fn_traits, unboxed_closures, stdsimd,)
 )]
 
-#[allow(unused_imports, unused_macros)]
-#[cfg(not(feature = "use_std"))]
+#[cfg(not(feature = "std"))]
 use core as std;
-
-use std::cmp;
 
 #[cfg(feature = "unstable")]
 use std::{arch, mem, slice};
 
-use crate::cmp::Ordering;
+use std::cmp::Ordering;
 
 #[cfg(feature = "unstable")]
 mod ord;
@@ -415,7 +408,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
         #[cfg(
             any(
                 // Either we have run-time feature detection:
-                feature = "use_std",
+                feature = "std",
                 // Or the features are enabled at compile-time
                 any($(target_feature = $feature),*)
             )
@@ -427,7 +420,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
                 // compile-time detection. This specialization only exists if
                 // at least one of the features is actually enabled, so we don't
                 // need a fallback here.
-                #[cfg(not(feature = "use_std"))]
+                #[cfg(not(feature = "std"))]
                 unsafe {
                     $(
                         #[cfg(target_feature = $feature)]
@@ -437,7 +430,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
                     )*
                 }
 
-                #[cfg(feature = "use_std")]
+                #[cfg(feature = "std")]
                 {
                     $(
                         if is_x86_feature_detected!($feature) {
@@ -455,7 +448,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
         #[cfg(
             any(
                 // Either we have run-time feature detection:
-                feature = "use_std",
+                feature = "std",
                 // Or the features are enabled at compile-time
                 any($(target_feature = $feature),*)
             )
@@ -468,7 +461,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
                 // compile-time detection. This specialization only exists if
                 // at least one of the features is actually enabled, so we don't
                 // need a fallback here.
-                #[cfg(not(feature = "use_std"))]
+                #[cfg(not(feature = "std"))]
                 unsafe {
                     $(
                         #[cfg(target_feature = $feature)]
@@ -484,7 +477,7 @@ macro_rules! is_sorted_by_slice_iter_x86 {
                     )*
                 }
 
-                #[cfg(feature = "use_std")]
+                #[cfg(feature = "std")]
                 {
                     $(
                         if is_x86_feature_detected!($feature) {
@@ -503,108 +496,108 @@ macro_rules! is_sorted_by_slice_iter_x86 {
 
 is_sorted_by_slice_iter_x86!(
     i64, ord::types::Increasing :
-    ["avx2", ::signed::avx2::is_sorted_lt_i64],
-    ["sse4.2", ::signed::sse42::is_sorted_lt_i64]
+    ["avx2", crate::signed::avx2::is_sorted_lt_i64],
+    ["sse4.2", crate::signed::sse42::is_sorted_lt_i64]
 );
 
 is_sorted_by_slice_iter_x86!(
     i64, ord::types::Decreasing :
-    ["avx2", ::signed::avx2::is_sorted_gt_i64],
-    ["sse4.2", ::signed::sse42::is_sorted_gt_i64]
+    ["avx2", crate::signed::avx2::is_sorted_gt_i64],
+    ["sse4.2", crate::signed::sse42::is_sorted_gt_i64]
 );
 
 is_sorted_by_slice_iter_x86!(
     f64, ord::types::Increasing :
-    ["avx", ::floats::avx::is_sorted_lt_f64],
-    ["sse4.1", ::floats::sse41::is_sorted_lt_f64]
+    ["avx", crate::floats::avx::is_sorted_lt_f64],
+    ["sse4.1", crate::floats::sse41::is_sorted_lt_f64]
 );
 
 is_sorted_by_slice_iter_x86!(
     f64, ord::types::Decreasing :
-    ["avx", ::floats::avx::is_sorted_gt_f64],
-    ["sse4.1", ::floats::sse41::is_sorted_gt_f64]
+    ["avx", crate::floats::avx::is_sorted_gt_f64],
+    ["sse4.1", crate::floats::sse41::is_sorted_gt_f64]
 );
 
 is_sorted_by_slice_iter_x86!(
     i32, ord::types::Increasing :
-    ["avx2", ::signed::avx2::is_sorted_lt_i32],
-    ["sse4.1", ::signed::sse41::is_sorted_lt_i32]
+    ["avx2", crate::signed::avx2::is_sorted_lt_i32],
+    ["sse4.1", crate::signed::sse41::is_sorted_lt_i32]
 );
 
 is_sorted_by_slice_iter_x86!(
     i32, ord::types::Decreasing :
-    ["avx2", ::signed::avx2::is_sorted_gt_i32],
-    ["sse4.1", ::signed::sse41::is_sorted_gt_i32]
+    ["avx2", crate::signed::avx2::is_sorted_gt_i32],
+    ["sse4.1", crate::signed::sse41::is_sorted_gt_i32]
 );
 
 is_sorted_by_slice_iter_x86!(
     u32, ord::types::Increasing :
-    ["avx2", ::unsigned::avx2::is_sorted_lt_u32],
-    ["sse4.1", ::unsigned::sse41::is_sorted_lt_u32]
+    ["avx2", crate::unsigned::avx2::is_sorted_lt_u32],
+    ["sse4.1", crate::unsigned::sse41::is_sorted_lt_u32]
 );
 
 is_sorted_by_slice_iter_x86!(
     u32, ord::types::Decreasing :
-    ["avx2", ::unsigned::avx2::is_sorted_gt_u32],
-    ["sse4.1", ::unsigned::sse41::is_sorted_gt_u32]
+    ["avx2", crate::unsigned::avx2::is_sorted_gt_u32],
+    ["sse4.1", crate::unsigned::sse41::is_sorted_gt_u32]
 );
 
 is_sorted_by_slice_iter_x86!(
     f32, ord::types::Increasing :
-    ["avx", ::floats::avx::is_sorted_lt_f32],
-    ["sse4.1", ::floats::sse41::is_sorted_lt_f32]
+    ["avx", crate::floats::avx::is_sorted_lt_f32],
+    ["sse4.1", crate::floats::sse41::is_sorted_lt_f32]
 );
 
 is_sorted_by_slice_iter_x86!(
     f32, ord::types::Decreasing :
-    ["avx", ::floats::avx::is_sorted_gt_f32],
-    ["sse4.1", ::floats::sse41::is_sorted_gt_f32]
+    ["avx", crate::floats::avx::is_sorted_gt_f32],
+    ["sse4.1", crate::floats::sse41::is_sorted_gt_f32]
 );
 
 is_sorted_by_slice_iter_x86!(
     i16, ord::types::Increasing :
-    ["avx2", ::signed::avx2::is_sorted_lt_i16],
-    ["sse4.1", ::signed::sse41::is_sorted_lt_i16]
+    ["avx2", crate::signed::avx2::is_sorted_lt_i16],
+    ["sse4.1", crate::signed::sse41::is_sorted_lt_i16]
 );
 
 is_sorted_by_slice_iter_x86!(
     i16, ord::types::Decreasing :
-    ["avx2", ::signed::avx2::is_sorted_gt_i16],
-    ["sse4.1", ::signed::sse41::is_sorted_gt_i16]
+    ["avx2", crate::signed::avx2::is_sorted_gt_i16],
+    ["sse4.1", crate::signed::sse41::is_sorted_gt_i16]
 );
 
 is_sorted_by_slice_iter_x86!(
     u16, ord::types::Increasing :
-    ["avx2", ::unsigned::avx2::is_sorted_lt_u16],
-    ["sse4.1", ::unsigned::sse41::is_sorted_lt_u16]
+    ["avx2", crate::unsigned::avx2::is_sorted_lt_u16],
+    ["sse4.1", crate::unsigned::sse41::is_sorted_lt_u16]
 );
 
 is_sorted_by_slice_iter_x86!(
     u16, ord::types::Decreasing :
-    ["avx2", ::unsigned::avx2::is_sorted_gt_u16],
-    ["sse4.1", ::unsigned::sse41::is_sorted_gt_u16]
+    ["avx2", crate::unsigned::avx2::is_sorted_gt_u16],
+    ["sse4.1", crate::unsigned::sse41::is_sorted_gt_u16]
 );
 
 is_sorted_by_slice_iter_x86!(
     i8, ord::types::Increasing :
-    ["avx2", ::signed::avx2::is_sorted_lt_i8],
-    ["sse4.1", ::signed::sse41::is_sorted_lt_i8]
+    ["avx2", crate::signed::avx2::is_sorted_lt_i8],
+    ["sse4.1", crate::signed::sse41::is_sorted_lt_i8]
 );
 
 is_sorted_by_slice_iter_x86!(
     i8, ord::types::Decreasing :
-    ["avx2", ::signed::avx2::is_sorted_gt_i8],
-    ["sse4.1", ::signed::sse41::is_sorted_gt_i8]
+    ["avx2", crate::signed::avx2::is_sorted_gt_i8],
+    ["sse4.1", crate::signed::sse41::is_sorted_gt_i8]
 );
 
 is_sorted_by_slice_iter_x86!(
     u8, ord::types::Increasing :
-    ["avx2", ::unsigned::avx2::is_sorted_lt_u8],
-    ["sse4.1", ::unsigned::sse41::is_sorted_lt_u8]
+    ["avx2", crate::unsigned::avx2::is_sorted_lt_u8],
+    ["sse4.1", crate::unsigned::sse41::is_sorted_lt_u8]
 );
 
 is_sorted_by_slice_iter_x86!(
     u8, ord::types::Decreasing :
-    ["avx2", ::unsigned::avx2::is_sorted_gt_u8],
-    ["sse4.1", ::unsigned::sse41::is_sorted_gt_u8]
+    ["avx2", crate::unsigned::avx2::is_sorted_gt_u8],
+    ["sse4.1", crate::unsigned::sse41::is_sorted_gt_u8]
 );

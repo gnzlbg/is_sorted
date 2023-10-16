@@ -18,8 +18,8 @@ macro_rules! is_sorted_lt_until_alignment_boundary {
         // 16-byte boundary. Handle the elements until the
         // first 16-byte boundary using the scalar algorithm
         {
-            let mut a =
-                $s.as_ptr().align_offset($boundary) / ::mem::size_of::<$ty>();
+            let mut a = $s.as_ptr().align_offset($boundary)
+                / crate::mem::size_of::<$ty>();
             while a > 0 && i < n - 1 {
                 if !($s.get_unchecked(i) <= $s.get_unchecked(i + 1)) {
                     return i;
@@ -68,8 +68,8 @@ macro_rules! is_sorted_gt_until_alignment_boundary {
         // 16-byte boundary. Handle the elements until the
         // first 16-byte boundary using the scalar algorithm
         {
-            let mut a =
-                $s.as_ptr().align_offset($boundary) / ::mem::size_of::<$ty>();
+            let mut a = $s.as_ptr().align_offset($boundary)
+                / crate::mem::size_of::<$ty>();
             while a > 0 && i < n - 1 {
                 if !($s.get_unchecked(i) >= $s.get_unchecked(i + 1)) {
                     return i;

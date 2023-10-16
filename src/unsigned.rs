@@ -15,9 +15,9 @@ macro_rules! unsigned_128 {
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
-            use arch::x86::*;
+            use crate::arch::x86::*;
             #[cfg(target_arch = "x86_64")]
-            use arch::x86_64::*;
+            use crate::arch::x86_64::*;
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 16;
@@ -175,9 +175,9 @@ macro_rules! unsigned_256 {
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
-            use arch::x86::*;
+            use crate::arch::x86::*;
             #[cfg(target_arch = "x86_64")]
-            use arch::x86_64::*;
+            use crate::arch::x86_64::*;
 
             // The alignment requirements for 256-bit wide vectors is 32 bytes:
             const ALIGNMENT: usize = 32;

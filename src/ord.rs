@@ -2,7 +2,8 @@
 #![allow(non_upper_case_globals)]
 
 pub mod types {
-    use cmp::Ordering;
+
+    use crate::Ordering;
 
     /// Equivalent to `Ord::partial_cmp(a, b)`
     pub struct Increasing();

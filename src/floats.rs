@@ -23,9 +23,9 @@ macro_rules! floats_128 {
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
-            use arch::x86::*;
+            use crate::arch::x86::*;
             #[cfg(target_arch = "x86_64")]
-            use arch::x86_64::*;
+            use crate::arch::x86_64::*;
 
             // The alignment requirements for 128-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 16;
@@ -51,7 +51,7 @@ macro_rules! floats_128 {
             if (n - i) >= MIN_LEN {
                 let mut current = $load(ap(i + 0 * NLANES)); // [a0,..,a3]
                 while i < n - STRIDE {
-                    use mem::transmute;
+                    use crate::mem::transmute;
                     let next0 = $load(ap(i + 1 * NLANES)); // [a4,..,a7]
                     let next1 = $load(ap(i + 2 * NLANES)); // [a8,..,a11]
                     let next2 = $load(ap(i + 3 * NLANES)); // [a12,..,a15]
@@ -175,9 +175,9 @@ macro_rules! floats_256 {
         #[target_feature(enable = $cpuid)]
         pub unsafe fn $name(s: &[$id]) -> usize {
             #[cfg(target_arch = "x86")]
-            use arch::x86::*;
+            use crate::arch::x86::*;
             #[cfg(target_arch = "x86_64")]
-            use arch::x86_64::*;
+            use crate::arch::x86_64::*;
 
             // The alignment requirements for 256-bit wide vectors is 16 bytes:
             const ALIGNMENT: usize = 32;
@@ -200,7 +200,7 @@ macro_rules! floats_256 {
             const MIN_LEN: usize = NLANES * (NVECS + 1);
             if (n - i) >= MIN_LEN {
                 while i < n - STRIDE {
-                    use mem::transmute;
+                    use crate::mem::transmute;
                     let current = $load(ap(i + 0 * NLANES)); // [a0,..,a3]
                                                              // == 16 | the last vector of current is the first of next
                     let next0 = $load(ap(i + 1 * NLANES)); // [a4,..,a7]

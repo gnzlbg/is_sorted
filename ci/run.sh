@@ -13,14 +13,14 @@ cargo build --no-default-features
 ! find target/ -name *.rlib -exec nm {} \; | grep "std"
 
 cargo test --no-default-features
-cargo test --no-default-features --features use_std
+cargo test --no-default-features --features std
 cargo test --no-default-features --release
 
 if [[ $TRAVIS_RUST_VERSION == "nightly" ]] || [[ $TARGET = *"windows"* ]]; then
     cargo test --no-default-features --features unstable
-    cargo test --no-default-features --features use_std,unstable
-    cargo test --no-default-features --release --features use_std,unstable
-    RUSTFLAGS="-C target-cpu=native" cargo test --no-default-features --release --features use_std,unstable
+    cargo test --no-default-features --features std,unstable
+    cargo test --no-default-features --release --features std,unstable
+    RUSTFLAGS="-C target-cpu=native" cargo test --no-default-features --release --features std,unstable
     cargo bench
     cargo bench --features unstable
 fi

@@ -6,7 +6,7 @@ description = "Is an Iterator sorted?"
 documentation = "https://docs.rs/crate/is_sorted/"
 homepage = "https://github.com/gnzlbg/is_sorted"
 repository = "https://github.com/gnzlbg/is_sorted"
-readme = "README.md"
+readme = "readme.md"
 keywords = ["algorithm", "simd", "sort"]
 categories = ["algorithms", "no-std"]
 license = "Apache-2.0 OR MIT"
@@ -21,12 +21,12 @@ is-it-maintained-open-issues = { repository = "gnzlbg/is_sorted" }
 maintenance = { status = "experimental" }
 
 [features]
-default = [ "use_std" ]
+default = [ "std" ]
 unstable = []
-use_std = []
+std = []
 
 [dev-dependencies]
-rand = "0.8.*"
+rand = "0.8"
 
 [profile.bench]
 opt-level = 3
